@@ -1,0 +1,18 @@
+bin/
+obj/
+.vs/
+.vscode/
+
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+TestResults/
+artifacts/
+
+# Keep release binaries out of normal source commits.
+# Upload them to GitHub Releases instead.
+release-assets/*.exe
+release-assets/*.zip
+

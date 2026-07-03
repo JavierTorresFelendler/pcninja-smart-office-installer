@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk.WindowsDesktop">
+  <PropertyGroup>
+    <AssemblyName>OfficeSmart-v3.3</AssemblyName>
+    <GenerateAssemblyInfo>False</GenerateAssemblyInfo>
+    <OutputType>WinExe</OutputType>
+    <UseWindowsForms>True</UseWindowsForms>
+    <TargetFramework>net48</TargetFramework>
+    <PlatformTarget>x64</PlatformTarget>
+  </PropertyGroup>
+  <PropertyGroup>
+    <LangVersion>10.0</LangVersion>
+    <AllowUnsafeBlocks>True</AllowUnsafeBlocks>
+    <CheckForOverflowUnderflow>False</CheckForOverflowUnderflow>
+  </PropertyGroup>
+  <PropertyGroup>
+    <ApplicationIcon>app.ico</ApplicationIcon>
+    <RootNamespace />
+  </PropertyGroup>
+  <ItemGroup>
+    <None Remove="OfficeSmart.favicon.ico" />
+    <None Remove="OfficeSmart.Ninja-DMT.png" />
+    <EmbeddedResource Include="OfficeSmart.favicon.ico" LogicalName="OfficeSmart.favicon.ico" />
+    <EmbeddedResource Include="OfficeSmart.Ninja-DMT.png" LogicalName="OfficeSmart.Ninja-DMT.png" />
+  </ItemGroup>
+  <ItemGroup />
+</Project>
