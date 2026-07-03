@@ -13,7 +13,7 @@ The current public release candidate is `v3.3`, with Windows file version `3.3.3
 - Can remove existing Office Click-to-Run installations.
 - Can prepare an offline LTSC install package.
 
-This project does not include Microsoft Office, license keys, activation bypasses, or cracked software. Users must have valid Microsoft licensing for the products they deploy.
+This project does not include Microsoft Office, private licensing material, activation bypasses, or cracked software. Users must have valid Microsoft licensing for the products they deploy.
 
 ## Requirements
 
@@ -63,4 +63,3 @@ Verified release SHA256:
 ## License
 
 No open-source license has been selected yet. Until a license is added, all rights are reserved by the owner.
-
