@@ -1,5 +1,13 @@
 # Changelog
 
+## v3.3.4-rc2
+
+- Removed the extra offline package destination prompt during download.
+- Changed offline package creation so the selected folder becomes the complete movable package root.
+- Final offline package contents now stay together in one folder: `Data`, `setup.exe`, `Office_Config.xml`, and `Install-Office.bat`.
+- Added internal staging under the selected folder and cleans it after the package is created.
+- Updated the offline package layout regression check for the single-folder workflow.
+
 ## v3.3.4-rc1
 
 - Fixed offline package layout so the selected destination folder is the final package root containing `setup.exe`, `Office_Config.xml`, `Install-Office.bat`, and the downloaded `Office` source folder.

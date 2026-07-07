@@ -1060,7 +1060,7 @@ public class InstallerForm : Form
 		panel2.Controls.Add(offSub);
 		offSub.Controls.Add(new Label
 		{
-			Text = "Downloads all source files + setup.exe + Install-Office.bat for machines without internet.",
+			Text = "Saves Data, setup.exe, Office_Config.xml, and Install-Office.bat in the selected folder.",
 			Location = new Point(10, 6),
 			Size = new Size(636, 18),
 			Font = new Font("Segoe UI", 8.5f),
@@ -1087,7 +1087,7 @@ public class InstallerForm : Form
 		{
 			FolderBrowserDialog folderBrowserDialog = new FolderBrowserDialog
 			{
-				Description = "Select offline download folder"
+				Description = "Select folder for the complete offline Office package"
 			};
 			if (folderBrowserDialog.ShowDialog() == DialogResult.OK)
 			{
@@ -1677,45 +1677,42 @@ public class InstallerForm : Form
 
 	private void RunOfflineDownload(BackgroundWorker bw)
 	{
-		bool folderOk = false;
-		Invoke((MethodInvoker)delegate
+		string packagePath = (offPath ?? "").Trim();
+		if (string.IsNullOrWhiteSpace(packagePath))
 		{
-			MessageBox.Show("Please select (or create) a folder for the offline installation.\n\nThe installer will download all Office source files (~2-4 GB) and\nplace them inside an Office\\ sub-folder there, together with\nsetup.exe and Install-Office.bat.\n\nTip: Create a new empty folder first, such as OfficeInstall.", "Select Offline Destination Folder", MessageBoxButtons.OK, MessageBoxIcon.Asterisk);
-			FolderBrowserDialog folderBrowserDialog = new FolderBrowserDialog
-			{
-				Description = "Select destination folder for offline Office files",
-				ShowNewFolderButton = true
-			};
-			if (folderBrowserDialog.ShowDialog() == DialogResult.OK)
-			{
-				offPath = folderBrowserDialog.SelectedPath;
-				folderOk = true;
-				if (txtOffPath != null)
-				{
-					txtOffPath.Text = offPath;
-				}
-			}
-		});
-		if (!folderOk)
-		{
-			Rep(bw, -1, "Offline download cancelled — no folder selected.");
+			Rep(bw, -1, "Offline download cancelled - no folder selected.");
 			return;
 		}
+
+		packagePath = Path.GetFullPath(packagePath);
+		offPath = packagePath;
+		if (txtOffPath != null && txtOffPath.IsHandleCreated)
+		{
+			Invoke((MethodInvoker)delegate
+			{
+				txtOffPath.Text = offPath;
+			});
+		}
+		if (!Directory.Exists(packagePath))
+		{
+			Directory.CreateDirectory(packagePath);
+		}
+
+		string stagingRoot = Path.Combine(packagePath, "_OfficeSmartDownload");
+		TryDelDir(stagingRoot);
+		Directory.CreateDirectory(stagingRoot);
+
 		DownloadAndExtractODT(bw, 5, 30);
 		Rep(bw, 46, "Writing XML configuration...");
 		File.WriteAllText(xmlFile, BuildXML(), Encoding.UTF8);
-		if (!Directory.Exists(offPath))
-		{
-			Directory.CreateDirectory(offPath);
-		}
-		string text = Path.Combine(offPath, "_dl.xml");
-		File.WriteAllText(text, BuildXML(offPath), Encoding.UTF8);
+		string text = Path.Combine(stagingRoot, "_dl.xml");
+		File.WriteAllText(text, BuildXML(stagingRoot), Encoding.UTF8);
 		Rep(bw, 52, "Downloading Office source files (20-40 min)...");
 		Process process = Process.Start(new ProcessStartInfo
 		{
 			FileName = Path.Combine(extractDir, "setup.exe"),
 			Arguments = "/download \"" + text + "\"",
-			WorkingDirectory = offPath,
+			WorkingDirectory = stagingRoot,
 			UseShellExecute = false,
 			CreateNoWindow = true
 		});
@@ -1725,20 +1722,22 @@ public class InstallerForm : Form
 		{
 			throw new Exception("Office source download failed (exit code " + process.ExitCode + ").");
 		}
-		string text2 = Path.Combine(offPath, "Office");
+		string text2 = Path.Combine(stagingRoot, "Office");
 		if (!Directory.Exists(text2))
 		{
-			throw new Exception("Office source folder was not created in the selected destination.");
+			throw new Exception("Office source folder was not created by the download process.");
 		}
-		File.Copy(Path.Combine(extractDir, "setup.exe"), Path.Combine(offPath, "setup.exe"), overwrite: true);
-		File.Copy(xmlFile, Path.Combine(offPath, "Office_Config.xml"), overwrite: true);
+		CopyDirectoryContents(text2, packagePath);
+		File.Copy(Path.Combine(extractDir, "setup.exe"), Path.Combine(packagePath, "setup.exe"), overwrite: true);
+		File.Copy(xmlFile, Path.Combine(packagePath, "Office_Config.xml"), overwrite: true);
 		string contents = "@echo off\r\nnet session >nul 2>&1\r\nif %errorLevel% neq 0 (\r\n    echo.\r\n    echo  ERROR: Must be run as Administrator.\r\n    echo  Right-click Install-Office.bat and choose Run as administrator.\r\n    echo.\r\n    pause\r\n    exit /b 1\r\n)\r\necho  PcNinja Office Smart Installer - Offline Mode\r\necho.\r\ncd /d \"%~dp0\"\r\necho  Starting installation, please wait...\r\nsetup.exe /configure Office_Config.xml\r\necho.\r\necho  Done. Press any key to exit.\r\npause > nul\r\n";
-		File.WriteAllText(Path.Combine(offPath, "Install-Office.bat"), contents, Encoding.ASCII);
+		File.WriteAllText(Path.Combine(packagePath, "Install-Office.bat"), contents, Encoding.ASCII);
 		Rep(bw, 96, "Cleaning up temporary files...");
 		TryDel(odtExe);
 		TryDel(xmlFile);
 		TryDelDir(extractDir);
-		Rep(bw, 100, "Done!  Copy the entire \"" + offPath + "\" folder to the target machine\r\nand run Install-Office.bat as Administrator.");
+		TryDelDir(stagingRoot);
+		Rep(bw, 100, "Done!  Copy the entire \"" + packagePath + "\" folder to the target machine\r\nand run Install-Office.bat as Administrator.");
 	}
 
 	private string BuildXML()
@@ -1922,6 +1921,32 @@ public class InstallerForm : Form
 		}
 		catch
 		{
+		}
+	}
+
+	private void CopyDirectoryContents(string sourceDir, string destDir)
+	{
+		if (!Directory.Exists(destDir))
+		{
+			Directory.CreateDirectory(destDir);
+		}
+		foreach (string directory in Directory.GetDirectories(sourceDir, "*", SearchOption.AllDirectories))
+		{
+			string targetDir = Path.Combine(destDir, directory.Substring(sourceDir.Length).TrimStart(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
+			if (!Directory.Exists(targetDir))
+			{
+				Directory.CreateDirectory(targetDir);
+			}
+		}
+		foreach (string file in Directory.GetFiles(sourceDir, "*", SearchOption.AllDirectories))
+		{
+			string targetFile = Path.Combine(destDir, file.Substring(sourceDir.Length).TrimStart(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
+			string targetParent = Path.GetDirectoryName(targetFile);
+			if (!Directory.Exists(targetParent))
+			{
+				Directory.CreateDirectory(targetParent);
+			}
+			File.Copy(file, targetFile, overwrite: true);
 		}
 	}
 
