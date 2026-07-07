@@ -1,6 +1,7 @@
 param(
     [string]$Configuration = "Release",
-    [string]$ExpectedReleaseSha256 = ""
+    [string]$ExpectedReleaseSha256 = "",
+    [string]$ReleaseAssetPath = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -8,7 +9,6 @@ $ErrorActionPreference = "Stop"
 $repoRoot = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
 $project = Join-Path $repoRoot "PcNinja.SmartOfficeInstaller.csproj"
 $assemblyInfo = Join-Path $repoRoot "Properties\AssemblyInfo.cs"
-$releaseAsset = Join-Path $repoRoot "release-assets\OfficeSmart-v3.3.exe"
 
 function Fail($message) {
     throw "[public-ready] $message"
@@ -29,7 +29,13 @@ if (Test-Path -LiteralPath $offlineLayoutCheck) {
     & powershell -NoProfile -ExecutionPolicy Bypass -File $offlineLayoutCheck
 }
 
-$builtExe = Join-Path $repoRoot "bin\$Configuration\net48\OfficeSmart-v3.3.exe"
+$projectText = Get-Content -LiteralPath $project -Raw
+$assemblyName = [regex]::Match($projectText, '<AssemblyName>([^<]+)</AssemblyName>').Groups[1].Value
+if (-not $assemblyName) {
+    Fail "AssemblyName was not found in the project file."
+}
+
+$builtExe = Join-Path $repoRoot "bin\$Configuration\net48\$assemblyName.exe"
 if (-not (Test-Path -LiteralPath $builtExe)) {
     Fail "Build output not found: $builtExe"
 }
@@ -114,6 +120,11 @@ if ($findings.Count -gt 0) {
 }
 
 if ($ExpectedReleaseSha256) {
+    $releaseAsset = $ReleaseAssetPath
+    if (-not $releaseAsset) {
+        $releaseAsset = Join-Path $repoRoot "release-assets\$assemblyName.exe"
+    }
+
     if (-not (Test-Path -LiteralPath $releaseAsset)) {
         Fail "Expected release asset not found: $releaseAsset"
     }
@@ -128,6 +139,7 @@ if ($ExpectedReleaseSha256) {
     Status = "OK"
     AssemblyVersion = $assemblyVersion
     FileVersion = $fileVersion
+    AssemblyName = $assemblyName
     BuiltExe = $builtExe
     BuiltSha256 = (Get-FileHash -Algorithm SHA256 -LiteralPath $builtExe).Hash
 }

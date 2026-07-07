@@ -2,7 +2,9 @@
 
 PcNinja Smart Office Installer is a Windows WinForms utility for installing or removing Microsoft Office through the official Microsoft Office Deployment Tool.
 
-The current public release candidate is `v3.3`, with Windows file version `3.3.3.1`.
+The current stable release is `v3.3`, with Windows file version `3.3.3.1`.
+
+The current release candidate is `v3.3.4-rc1`, with Windows file version `3.3.4.0`.
 
 ## What it does
 
@@ -33,7 +35,7 @@ dotnet build .\PcNinja.SmartOfficeInstaller.csproj -c Release
 The compiled executable is written to:
 
 ```text
-bin\Release\net48\OfficeSmart-v3.3.exe
+bin\Release\net48\OfficeSmart-v3.3.4-rc1.exe
 ```
 
 You can also run:
@@ -46,9 +48,9 @@ which builds the app and copies the executable into `artifacts\`.
 
 ## Release artifact
 
-The verified release EXE is kept locally under `release-assets\OfficeSmart-v3.3.exe` for upload to a GitHub Release. It is intentionally ignored by Git so the repository stays source-focused.
+Verified release EXE files are kept locally under `release-assets\` for upload to GitHub Releases. They are intentionally ignored by Git so the repository stays source-focused.
 
-Verified release SHA256:
+Verified stable `v3.3` SHA256:
 
 ```text
 498922A68EA7A2BCC94B96E5E8A15425BAFE842B6B5613F0304821D634080ED1

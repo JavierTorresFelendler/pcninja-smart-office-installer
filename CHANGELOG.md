@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v3.3.4-rc1
 
 - Fixed offline package layout so the selected destination folder is the final package root containing `setup.exe`, `Office_Config.xml`, `Install-Office.bat`, and the downloaded `Office` source folder.
 - Added a regression check for offline package layout.

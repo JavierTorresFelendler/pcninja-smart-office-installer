@@ -62,3 +62,11 @@ The check must build successfully, confirm version metadata, and return no sensi
 5. Create a GitHub Release tag such as `v3.4`.
 6. Upload the verified EXE as a release asset.
 7. Confirm the uploaded asset digest matches the local SHA256.
+
+## Branch / Worktree Flow
+
+- `main`: stable public source and final releases.
+- `dev`: integration branch for active development and release candidates.
+- Local DEV worktree: `D:\pcninja-smart-office-installer-dev`.
+- RC tags use prerelease names such as `v3.3.4-rc1`.
+- Promote an RC by merging `dev` back to `main`, bumping final version metadata if needed, and publishing a non-prerelease GitHub Release.
