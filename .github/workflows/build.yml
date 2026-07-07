@@ -33,5 +33,5 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: OfficeSmart-v3.3
-          path: bin\Release\net48\OfficeSmart-v3.3.exe
+          name: OfficeSmart-build
+          path: bin\Release\net48\OfficeSmart-v*.exe
