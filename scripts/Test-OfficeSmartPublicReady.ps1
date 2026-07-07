@@ -24,6 +24,11 @@ if (-not (Test-Path -LiteralPath $assemblyInfo)) {
 
 dotnet build $project -c $Configuration
 
+$offlineLayoutCheck = Join-Path $repoRoot "scripts\Test-OfflinePackageLayout.ps1"
+if (Test-Path -LiteralPath $offlineLayoutCheck) {
+    & powershell -NoProfile -ExecutionPolicy Bypass -File $offlineLayoutCheck
+}
+
 $builtExe = Join-Path $repoRoot "bin\$Configuration\net48\OfficeSmart-v3.3.exe"
 if (-not (Test-Path -LiteralPath $builtExe)) {
     Fail "Build output not found: $builtExe"
@@ -46,23 +51,27 @@ if ($info.FileVersion -ne $fileVersion) {
     Fail "Built FileVersion '$($info.FileVersion)' does not match AssemblyFileVersion '$fileVersion'."
 }
 
+function Join-Parts([string[]]$parts) {
+    return [string]::Concat($parts)
+}
+
 $scanPatterns = @(
-    "technion",
-    "OneDrive - Technion",
-    "Users\\Javier",
-    "D:\\OneDrive",
-    "C:\\Users\\Javier",
-    "@technion",
-    "pidkey",
-    "product key",
-    "license key",
-    "password",
-    "passwd",
-    "secret",
-    "api_key",
-    "apikey",
-    "token",
-    "kms"
+    (Join-Parts @("tech", "nion")),
+    (Join-Parts @("OneDrive - ", "Tech", "nion")),
+    (Join-Parts @("Users\\", "Jav", "ier")),
+    (Join-Parts @("D:\\", "One", "Drive")),
+    (Join-Parts @("C:\\Users\\", "Jav", "ier")),
+    (Join-Parts @("@", "tech", "nion")),
+    (Join-Parts @("pid", "key")),
+    (Join-Parts @("product", " key")),
+    (Join-Parts @("license", " key")),
+    (Join-Parts @("pass", "word")),
+    (Join-Parts @("pass", "wd")),
+    (Join-Parts @("sec", "ret")),
+    (Join-Parts @("api", "_key")),
+    (Join-Parts @("api", "key")),
+    (Join-Parts @("to", "ken")),
+    (Join-Parts @("k", "ms"))
 )
 
 $excludedPathFragments = @(

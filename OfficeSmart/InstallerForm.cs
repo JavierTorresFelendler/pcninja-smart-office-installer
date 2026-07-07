@@ -7,6 +7,7 @@ using System.Drawing.Drawing2D;
 using System.IO;
 using System.Net;
 using System.Reflection;
+using System.Security;
 using System.Text;
 using System.Windows.Forms;
 
@@ -1708,12 +1709,13 @@ public class InstallerForm : Form
 			Directory.CreateDirectory(offPath);
 		}
 		string text = Path.Combine(offPath, "_dl.xml");
-		File.Copy(xmlFile, text, overwrite: true);
+		File.WriteAllText(text, BuildXML(offPath), Encoding.UTF8);
 		Rep(bw, 52, "Downloading Office source files (20-40 min)...");
 		Process process = Process.Start(new ProcessStartInfo
 		{
 			FileName = Path.Combine(extractDir, "setup.exe"),
 			Arguments = "/download \"" + text + "\"",
+			WorkingDirectory = offPath,
 			UseShellExecute = false,
 			CreateNoWindow = true
 		});
@@ -1726,22 +1728,32 @@ public class InstallerForm : Form
 		string text2 = Path.Combine(offPath, "Office");
 		if (!Directory.Exists(text2))
 		{
-			Directory.CreateDirectory(text2);
+			throw new Exception("Office source folder was not created in the selected destination.");
 		}
-		File.Copy(Path.Combine(extractDir, "setup.exe"), Path.Combine(text2, "setup.exe"), overwrite: true);
-		File.Copy(xmlFile, Path.Combine(text2, "Office_Config.xml"), overwrite: true);
+		File.Copy(Path.Combine(extractDir, "setup.exe"), Path.Combine(offPath, "setup.exe"), overwrite: true);
+		File.Copy(xmlFile, Path.Combine(offPath, "Office_Config.xml"), overwrite: true);
 		string contents = "@echo off\r\nnet session >nul 2>&1\r\nif %errorLevel% neq 0 (\r\n    echo.\r\n    echo  ERROR: Must be run as Administrator.\r\n    echo  Right-click Install-Office.bat and choose Run as administrator.\r\n    echo.\r\n    pause\r\n    exit /b 1\r\n)\r\necho  PcNinja Office Smart Installer - Offline Mode\r\necho.\r\ncd /d \"%~dp0\"\r\necho  Starting installation, please wait...\r\nsetup.exe /configure Office_Config.xml\r\necho.\r\necho  Done. Press any key to exit.\r\npause > nul\r\n";
-		File.WriteAllText(Path.Combine(text2, "Install-Office.bat"), contents, Encoding.ASCII);
-		Rep(bw, 100, "Done!  Copy the entire \"" + text2 + "\" folder to the target machine\r\nand run Install-Office.bat as Administrator.");
+		File.WriteAllText(Path.Combine(offPath, "Install-Office.bat"), contents, Encoding.ASCII);
+		Rep(bw, 96, "Cleaning up temporary files...");
+		TryDel(odtExe);
+		TryDel(xmlFile);
+		TryDelDir(extractDir);
+		Rep(bw, 100, "Done!  Copy the entire \"" + offPath + "\" folder to the target machine\r\nand run Install-Office.bat as Administrator.");
 	}
 
 	private string BuildXML()
 	{
+		return BuildXML(null);
+	}
+
+	private string BuildXML(string sourcePath)
+	{
 		StringBuilder stringBuilder = new StringBuilder();
 		string text = (use32bit ? "32" : "64");
 		string text2 = ((family == OfficeFamily.LTSC) ? "PerpetualVL2024" : ch365);
+		string text3 = string.IsNullOrWhiteSpace(sourcePath) ? "" : " SourcePath=\"" + SecurityElement.Escape(sourcePath) + "\"";
 		stringBuilder.AppendLine("<Configuration>");
-		stringBuilder.AppendLine("  <Add OfficeClientEdition=\"" + text + "\" Channel=\"" + text2 + "\">");
+		stringBuilder.AppendLine("  <Add" + text3 + " OfficeClientEdition=\"" + text + "\" Channel=\"" + text2 + "\">");
 		if (family == OfficeFamily.LTSC)
 		{
 			stringBuilder.AppendLine("    <Product ID=\"ProPlus2024Volume\">");
