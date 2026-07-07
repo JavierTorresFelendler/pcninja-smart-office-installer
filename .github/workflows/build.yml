@@ -4,9 +4,13 @@ on:
   push:
     branches:
       - main
+      - dev
+    tags:
+      - "v*-rc*"
   pull_request:
     branches:
       - main
+      - dev
   workflow_dispatch:
 
 jobs:
@@ -31,4 +35,3 @@ jobs:
         with:
           name: OfficeSmart-v3.3
           path: bin\Release\net48\OfficeSmart-v3.3.exe
-
