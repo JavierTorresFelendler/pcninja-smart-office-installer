@@ -33,12 +33,17 @@ function Assert-OfflineNotContains($pattern, $message) {
     }
 }
 
-Assert-Contains 'string\s+packagePath\s*=\s*\(offPath\s*\?\?\s*""\)\.Trim\(\)' "Offline download should use the already selected package folder."
-Assert-Contains 'Path\.GetFullPath\(packagePath\)' "Offline package destination should be normalized before use."
+Assert-Contains 'private\s+const\s+string\s+OFFLINE_PACKAGE_FOLDER\s*=\s*"OFFICE-OFFLINE"' "Offline package folder must be named OFFICE-OFFLINE."
+Assert-Contains 'string\s+selectedPath\s*=\s*\(offPath\s*\?\?\s*""\)\.Trim\(\)' "Offline download should use the already selected parent folder."
+Assert-Contains 'Path\.GetFullPath\(selectedPath\)' "Offline package parent destination should be normalized before use."
+Assert-Contains 'string\s+packagePath\s*=\s*ResolveOfflinePackagePath\(selectedPath\)' "Offline package files should go into OFFICE-OFFLINE under the selected folder."
+Assert-Contains 'Path\.Combine\(selectedPath,\s*OFFLINE_PACKAGE_FOLDER\)' "Offline package resolver should create OFFICE-OFFLINE under the selected folder."
+Assert-Contains 'StringComparison\.OrdinalIgnoreCase' "Offline package resolver should avoid nesting OFFICE-OFFLINE inside an existing OFFICE-OFFLINE folder."
 Assert-Contains 'string\s+stagingRoot\s*=\s*Path\.Combine\(packagePath,\s*"_OfficeSmartDownload"\)' "Offline download should use an internal staging folder under the selected package folder."
 Assert-Contains 'BuildXML\(stagingRoot\)' "Offline download XML must point ODT at the staging source folder."
 Assert-Contains 'WorkingDirectory\s*=\s*stagingRoot' "ODT download should run in the staging folder."
 Assert-Contains 'Path\.Combine\(stagingRoot,\s*"Office"\)' "Offline package should validate that the Office source folder exists under staging."
+Assert-Contains 'TryDelDir\(Path\.Combine\(packagePath,\s*"Data"\)\)' "Offline package should replace stale Data contents before copying the new package."
 Assert-Contains 'CopyDirectoryContents\(text2,\s*packagePath\)' "Downloaded Office source files should be moved into the selected package folder."
 Assert-Contains 'Path\.Combine\(packagePath,\s*"setup\.exe"\)' "Offline package setup.exe should be copied to the selected package root."
 Assert-Contains 'Path\.Combine\(packagePath,\s*"Office_Config\.xml"\)' "Offline package config XML should be copied to the selected package root."

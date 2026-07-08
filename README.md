@@ -4,7 +4,7 @@ PcNinja Smart Office Installer is a Windows WinForms utility for installing or r
 
 The current stable release is `v3.3`, with Windows file version `3.3.3.1`.
 
-The current release candidate is `v3.3.4-rc2`, with Windows file version `3.3.4.1`.
+The current release candidate is `v3.3.4-rc3`, with Windows file version `3.3.4.2`.
 
 ## What it does
 
@@ -35,7 +35,7 @@ dotnet build .\PcNinja.SmartOfficeInstaller.csproj -c Release
 The compiled executable is written to:
 
 ```text
-bin\Release\net48\OfficeSmart-v3.3.4-rc2.exe
+bin\Release\net48\OfficeSmart-v3.3.4-rc3.exe
 ```
 
 You can also run:

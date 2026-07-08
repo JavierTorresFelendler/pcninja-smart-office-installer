@@ -9,6 +9,6 @@ using System.Runtime.Versioning;
 [assembly: AssemblyCompany("PcNinja.Pro")]
 [assembly: AssemblyProduct("PcNinja Ultimate Office Installer")]
 [assembly: AssemblyCopyright("(c) 2025 PcNinja.Pro - www.pcninja.pro")]
-[assembly: AssemblyFileVersion("3.3.4.1")]
+[assembly: AssemblyFileVersion("3.3.4.2")]
 [assembly: ComVisible(false)]
 [assembly: AssemblyVersion("3.3.0.0")]

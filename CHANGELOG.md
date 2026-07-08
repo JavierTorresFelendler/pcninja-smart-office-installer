@@ -1,5 +1,12 @@
 # Changelog
 
+## v3.3.4-rc3
+
+- Changed offline package creation so the selected folder is treated as the parent destination.
+- The final movable package is now created as an `OFFICE-OFFLINE` folder under the selected location.
+- If the selected folder is already named `OFFICE-OFFLINE`, it is used directly instead of nesting another folder.
+- Updated offline mode UI text and regression checks for the `OFFICE-OFFLINE` workflow.
+
 ## v3.3.4-rc2
 
 - Removed the extra offline package destination prompt during download.

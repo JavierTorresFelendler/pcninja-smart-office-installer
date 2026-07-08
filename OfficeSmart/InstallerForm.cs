@@ -51,6 +51,8 @@ public class InstallerForm : Form
 
 	private const string ODT_URL = "https://download.microsoft.com/download/6c1eeb25-cf8b-41d9-8d0d-cc1dbc032140/officedeploymenttool_18827-20140.exe";
 
+	private const string OFFLINE_PACKAGE_FOLDER = "OFFICE-OFFLINE";
+
 	private string odtExe = Path.Combine(Path.GetTempPath(), "pcninja_odt.exe");
 
 	private string extractDir = Path.Combine(Path.GetTempPath(), "pcninja_odt_x");
@@ -193,7 +195,7 @@ public class InstallerForm : Form
 
 	public InstallerForm()
 	{
-		offPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Office-Offline");
+		offPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, OFFLINE_PACKAGE_FOLDER);
 		_ = new string[9] { "Word", "Excel", "PowerPoint", "Outlook", "OneNote", "Access", "Publisher", "Teams", "OneDrive" };
 		BuildForm();
 		BuildWorker();
@@ -1060,7 +1062,7 @@ public class InstallerForm : Form
 		panel2.Controls.Add(offSub);
 		offSub.Controls.Add(new Label
 		{
-			Text = "Saves Data, setup.exe, Office_Config.xml, and Install-Office.bat in the selected folder.",
+			Text = "Creates OFFICE-OFFLINE there with Data, setup.exe, Office_Config.xml, and Install-Office.bat.",
 			Location = new Point(10, 6),
 			Size = new Size(636, 18),
 			Font = new Font("Segoe UI", 8.5f),
@@ -1087,7 +1089,7 @@ public class InstallerForm : Form
 		{
 			FolderBrowserDialog folderBrowserDialog = new FolderBrowserDialog
 			{
-				Description = "Select folder for the complete offline Office package"
+				Description = "Select where to create the OFFICE-OFFLINE folder"
 			};
 			if (folderBrowserDialog.ShowDialog() == DialogResult.OK)
 			{
@@ -1677,15 +1679,16 @@ public class InstallerForm : Form
 
 	private void RunOfflineDownload(BackgroundWorker bw)
 	{
-		string packagePath = (offPath ?? "").Trim();
-		if (string.IsNullOrWhiteSpace(packagePath))
+		string selectedPath = (offPath ?? "").Trim();
+		if (string.IsNullOrWhiteSpace(selectedPath))
 		{
 			Rep(bw, -1, "Offline download cancelled - no folder selected.");
 			return;
 		}
 
-		packagePath = Path.GetFullPath(packagePath);
-		offPath = packagePath;
+		selectedPath = Path.GetFullPath(selectedPath);
+		string packagePath = ResolveOfflinePackagePath(selectedPath);
+		offPath = selectedPath;
 		if (txtOffPath != null && txtOffPath.IsHandleCreated)
 		{
 			Invoke((MethodInvoker)delegate
@@ -1727,6 +1730,7 @@ public class InstallerForm : Form
 		{
 			throw new Exception("Office source folder was not created by the download process.");
 		}
+		TryDelDir(Path.Combine(packagePath, "Data"));
 		CopyDirectoryContents(text2, packagePath);
 		File.Copy(Path.Combine(extractDir, "setup.exe"), Path.Combine(packagePath, "setup.exe"), overwrite: true);
 		File.Copy(xmlFile, Path.Combine(packagePath, "Office_Config.xml"), overwrite: true);
@@ -1738,6 +1742,17 @@ public class InstallerForm : Form
 		TryDelDir(extractDir);
 		TryDelDir(stagingRoot);
 		Rep(bw, 100, "Done!  Copy the entire \"" + packagePath + "\" folder to the target machine\r\nand run Install-Office.bat as Administrator.");
+	}
+
+	private string ResolveOfflinePackagePath(string selectedPath)
+	{
+		string trimmedPath = selectedPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+		string folderName = Path.GetFileName(trimmedPath);
+		if (string.Equals(folderName, OFFLINE_PACKAGE_FOLDER, StringComparison.OrdinalIgnoreCase))
+		{
+			return selectedPath;
+		}
+		return Path.Combine(selectedPath, OFFLINE_PACKAGE_FOLDER);
 	}
 
 	private string BuildXML()
