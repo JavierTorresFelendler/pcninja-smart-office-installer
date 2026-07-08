@@ -34,6 +34,11 @@ function Assert-OfflineNotContains($pattern, $message) {
 }
 
 Assert-Contains 'private\s+const\s+string\s+OFFLINE_PACKAGE_FOLDER\s*=\s*"OFFICE-OFFLINE"' "Offline package folder must be named OFFICE-OFFLINE."
+Assert-Contains 'PcNinja''s Smart Office Installer' "The public app title should use PcNinja's Smart Office Installer."
+Assert-Contains 'Auto-activate volume license during installation' "Auto-activation wording should be clear for online and package installs."
+Assert-Contains 'Create offline package only - do not install on this PC' "Offline mode must clearly say it does not install on this PC."
+Assert-Contains 'Create Package' "Offline package mode should use a package-oriented final action label."
+Assert-Contains 'Package' "Offline package mode should use package-oriented step wording."
 Assert-Contains 'string\s+selectedPath\s*=\s*\(offPath\s*\?\?\s*""\)\.Trim\(\)' "Offline download should use the already selected parent folder."
 Assert-Contains 'Path\.GetFullPath\(selectedPath\)' "Offline package parent destination should be normalized before use."
 Assert-Contains 'string\s+packagePath\s*=\s*ResolveOfflinePackagePath\(selectedPath\)' "Offline package files should go into OFFICE-OFFLINE under the selected folder."
@@ -53,6 +58,8 @@ Assert-NotContains 'File\.WriteAllText\(Path\.Combine\(text2,\s*"Install-Office\
 Assert-NotContains 'BuildXML\(offPath\)' "Offline download should not use the final package folder as the ODT staging source."
 Assert-NotContains 'WorkingDirectory\s*=\s*offPath' "ODT download should not run directly in the final package folder."
 Assert-NotContains 'Path\.Combine\(offPath,\s*"Office"\)' "Offline package should not leave Office data one level below a separate destination."
+Assert-NotContains 'Ultimate\s+Office\s+Installer' "The public app title should no longer use the old product name."
+Assert-NotContains 'Offline\s*/\s*Download\s+mode' "Offline mode label should not look like an additive download option."
 Assert-OfflineNotContains 'FolderBrowserDialog' "RunOfflineDownload must not open a second destination picker."
 Assert-OfflineNotContains 'MessageBox\.Show\("Please select' "RunOfflineDownload must use the folder already selected by the user."
 

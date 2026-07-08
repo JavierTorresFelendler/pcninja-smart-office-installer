@@ -97,6 +97,10 @@ public class InstallerForm : Form
 
 	private static readonly string[] RHINTS = new string[2] { "Choose your product family", "Confirm removal of all Office products" };
 
+	private static readonly string[] LPACKAGE_STEPS = new string[5] { "Family", "Products", "Languages", "Advanced", "Package" };
+
+	private static readonly string[] LPACKAGE_HINTS = new string[5] { "Choose your product family", "Select products and app components", "Select language packs", "Advanced package options", "Review and create offline package" };
+
 	private Panel pStepBar;
 
 	private Panel pContent;
@@ -203,7 +207,7 @@ public class InstallerForm : Form
 
 	private void BuildForm()
 	{
-		Text = "PcNinja's Ultimate Office Installer";
+		Text = "PcNinja's Smart Office Installer";
 		base.ClientSize = new Size(740, 800);
 		MinimumSize = new Size(756, 839);
 		MaximumSize = MinimumSize;
@@ -250,7 +254,7 @@ public class InstallerForm : Form
 		hdr.Controls.Add(panel);
 		hdr.Controls.Add(new Label
 		{
-			Text = "PcNinja's Ultimate Office Installer",
+			Text = "PcNinja's Smart Office Installer",
 			Location = new Point(72, 16),
 			Size = new Size(500, 30),
 			Font = new Font("Segoe UI", 14f, FontStyle.Bold),
@@ -347,7 +351,7 @@ public class InstallerForm : Form
 	{
 		Graphics graphics = e.Graphics;
 		graphics.SmoothingMode = SmoothingMode.AntiAlias;
-		string[] array = ((family == OfficeFamily.LTSC) ? LSTEPS : ((family == OfficeFamily.M365) ? MSTEPS : RSTEPS));
+		string[] array = StepLabels();
 		int num = array.Length;
 		int num2 = pStepBar.Width / num;
 		DrawBorderBottom(graphics, pStepBar.Width, pStepBar.Height, BORDER);
@@ -399,10 +403,28 @@ public class InstallerForm : Form
 		return ltscFlow;
 	}
 
+	private string[] StepLabels()
+	{
+		if (family == OfficeFamily.LTSC && offline)
+		{
+			return LPACKAGE_STEPS;
+		}
+		return (family == OfficeFamily.LTSC) ? LSTEPS : ((family == OfficeFamily.M365) ? MSTEPS : RSTEPS);
+	}
+
+	private string[] StepHints()
+	{
+		if (family == OfficeFamily.LTSC && offline)
+		{
+			return LPACKAGE_HINTS;
+		}
+		return (family == OfficeFamily.LTSC) ? LHINTS : ((family == OfficeFamily.M365) ? MHINTS : RHINTS);
+	}
+
 	private void Render()
 	{
 		Panel[] array = Flow();
-		string[] array2 = ((family == OfficeFamily.LTSC) ? LHINTS : ((family == OfficeFamily.M365) ? MHINTS : RHINTS));
+		string[] array2 = StepHints();
 		foreach (Control control in pContent.Controls)
 		{
 			control.Visible = false;
@@ -412,10 +434,10 @@ public class InstallerForm : Form
 		obj.Size = new Size(740, pContent.Height);
 		obj.Visible = true;
 		pStepBar.Invalidate();
-		lblHint.Text = "Step " + (step + 1) + " of " + array.Length + "  —  " + array2[step];
+		lblHint.Text = "Step " + (step + 1) + " of " + array.Length + " - " + array2[step];
 		btnBack.Visible = step > 0;
 		bool flag = step == array.Length - 1;
-		btnNext.Text = ((!flag) ? "Next" : ((family == OfficeFamily.Remove) ? "Remove Office" : "Install Office"));
+		btnNext.Text = ((!flag) ? "Next" : ((family == OfficeFamily.Remove) ? "Remove Office" : ((family == OfficeFamily.LTSC && offline) ? "Create Package" : "Install Office")));
 		btnNext.Size = (flag ? new Size(132, 34) : new Size(112, 34));
 		btnNext.Location = (flag ? new Point(594, 13) : new Point(614, 13));
 		btnNext.BackColor = (flag ? Color.FromArgb(150, 58, 237) : ACCENT);
@@ -1027,14 +1049,14 @@ public class InstallerForm : Form
 		Panel panel2 = Card(22, num, 696, 10);
 		panel.Controls.Add(panel2);
 		int num2 = 14;
-		chkAutoAct = Chk("Auto-activate volume license after installation", 14, num2, chk: true);
+		chkAutoAct = Chk("Auto-activate volume license during installation", 14, num2, chk: true);
 		chkAutoAct.CheckedChanged += delegate
 		{
 			autoAct = chkAutoAct.Checked;
 		};
 		panel2.Controls.Add(chkAutoAct);
 		num2 += 32;
-		chkRemOld = Chk("Remove all previous Office installations first", 14, num2, chk: false);
+		chkRemOld = Chk("Remove previous Office on target machine before installing", 14, num2, chk: false);
 		chkRemOld.CheckedChanged += delegate
 		{
 			removeOld = chkRemOld.Checked;
@@ -1048,7 +1070,7 @@ public class InstallerForm : Form
 			BackColor = BORDER
 		});
 		num2 += 16;
-		chkOffline = Chk("Offline / Download mode", 14, num2, chk: false);
+		chkOffline = Chk("Create offline package only - do not install on this PC", 14, num2, chk: false);
 		chkOffline.Font = new Font("Segoe UI", 9.5f, FontStyle.Bold);
 		panel2.Controls.Add(chkOffline);
 		panel2.Controls.Add(Tag("Advanced", Color.FromArgb(26, 15, 60), Color.FromArgb(167, 139, 250), new Point(220, num2 + 2)));
@@ -1102,6 +1124,7 @@ public class InstallerForm : Form
 		{
 			offline = chkOffline.Checked;
 			offSub.BackColor = (offline ? CARD2 : BG);
+			pStepBar.Invalidate();
 		};
 		num2 += 84;
 		panel2.Controls.Add(new Panel
@@ -1133,7 +1156,7 @@ public class InstallerForm : Form
 		panel2.Height = num2 + 10;
 		panel.Controls.Add(new Label
 		{
-			Text = "All options on this page are optional — skip if you want a standard online install.",
+			Text = "Online mode installs on this PC. Offline package mode only creates OFFICE-OFFLINE.",
 			Location = new Point(22, num + panel2.Height + 10),
 			Size = new Size(696, 20),
 			Font = new Font("Segoe UI", 8.5f),
@@ -1501,14 +1524,14 @@ public class InstallerForm : Form
 				text += "  +  Project";
 			}
 			SetSV("Products", text);
-			string text2 = (offline ? "Offline download" : "Online install");
+			string text2 = (offline ? "Create offline package only - no local install" : "Install on this PC");
 			if (removeOld)
 			{
-				text2 += "  ·  Remove old first";
+				text2 += " | Remove previous Office on target";
 			}
 			if (autoAct)
 			{
-				text2 += "  ·  Auto-activate";
+				text2 += " | Auto-activate";
 			}
 			SetSV("Mode", text2);
 		}
@@ -1569,7 +1592,7 @@ public class InstallerForm : Form
 			btnBack.Enabled = false;
 			txtLog.Clear();
 			pbar.Value = 0;
-			AppLog("PcNinja Office Smart Installer — starting...");
+			AppLog("PcNinja Smart Office Installer - starting...");
 			worker.RunWorkerAsync();
 		}
 	}
@@ -1734,7 +1757,7 @@ public class InstallerForm : Form
 		CopyDirectoryContents(text2, packagePath);
 		File.Copy(Path.Combine(extractDir, "setup.exe"), Path.Combine(packagePath, "setup.exe"), overwrite: true);
 		File.Copy(xmlFile, Path.Combine(packagePath, "Office_Config.xml"), overwrite: true);
-		string contents = "@echo off\r\nnet session >nul 2>&1\r\nif %errorLevel% neq 0 (\r\n    echo.\r\n    echo  ERROR: Must be run as Administrator.\r\n    echo  Right-click Install-Office.bat and choose Run as administrator.\r\n    echo.\r\n    pause\r\n    exit /b 1\r\n)\r\necho  PcNinja Office Smart Installer - Offline Mode\r\necho.\r\ncd /d \"%~dp0\"\r\necho  Starting installation, please wait...\r\nsetup.exe /configure Office_Config.xml\r\necho.\r\necho  Done. Press any key to exit.\r\npause > nul\r\n";
+		string contents = "@echo off\r\nnet session >nul 2>&1\r\nif %errorLevel% neq 0 (\r\n    echo.\r\n    echo  ERROR: Must be run as Administrator.\r\n    echo  Right-click Install-Office.bat and choose Run as administrator.\r\n    echo.\r\n    pause\r\n    exit /b 1\r\n)\r\necho  PcNinja Smart Office Installer - Offline Mode\r\necho.\r\ncd /d \"%~dp0\"\r\necho  Starting installation, please wait...\r\nsetup.exe /configure Office_Config.xml\r\necho.\r\necho  Done. Press any key to exit.\r\npause > nul\r\n";
 		File.WriteAllText(Path.Combine(packagePath, "Install-Office.bat"), contents, Encoding.ASCII);
 		Rep(bw, 96, "Cleaning up temporary files...");
 		TryDel(odtExe);
