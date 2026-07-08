@@ -29,6 +29,11 @@ if (Test-Path -LiteralPath $offlineLayoutCheck) {
     & powershell -NoProfile -ExecutionPolicy Bypass -File $offlineLayoutCheck
 }
 
+$updateManifestCheck = Join-Path $repoRoot "scripts\Test-UpdateManifest.ps1"
+if (Test-Path -LiteralPath $updateManifestCheck) {
+    & powershell -NoProfile -ExecutionPolicy Bypass -File $updateManifestCheck
+}
+
 $projectText = Get-Content -LiteralPath $project -Raw
 $assemblyName = [regex]::Match($projectText, '<AssemblyName>([^<]+)</AssemblyName>').Groups[1].Value
 if (-not $assemblyName) {

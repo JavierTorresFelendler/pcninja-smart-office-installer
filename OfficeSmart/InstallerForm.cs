@@ -7,8 +7,11 @@ using System.Drawing.Drawing2D;
 using System.IO;
 using System.Net;
 using System.Reflection;
+using System.Runtime.Serialization;
+using System.Runtime.Serialization.Json;
 using System.Security;
 using System.Text;
+using System.Threading.Tasks;
 using System.Windows.Forms;
 
 namespace OfficeSmart;
@@ -53,6 +56,10 @@ public class InstallerForm : Form
 
 	private const string OFFLINE_PACKAGE_FOLDER = "OFFICE-OFFLINE";
 
+	private const string UPDATE_MANIFEST_URL = "https://api.github.com/repos/JavierTorresFelendler/pcninja-smart-office-installer/contents/public-release/update-manifest.json?ref=main";
+
+	private const string GITHUB_RELEASES_URL = "https://github.com/JavierTorresFelendler/pcninja-smart-office-installer/releases";
+
 	private string odtExe = Path.Combine(Path.GetTempPath(), "pcninja_odt.exe");
 
 	private string extractDir = Path.Combine(Path.GetTempPath(), "pcninja_odt_x");
@@ -78,6 +85,8 @@ public class InstallerForm : Form
 	private string offPath;
 
 	private bool use32bit;
+
+	private bool updatePromptShown;
 
 	private int step;
 
@@ -203,6 +212,10 @@ public class InstallerForm : Form
 		_ = new string[9] { "Word", "Excel", "PowerPoint", "Outlook", "OneNote", "Access", "Publisher", "Teams", "OneDrive" };
 		BuildForm();
 		BuildWorker();
+		Shown += delegate
+		{
+			BeginUpdateCheck();
+		};
 	}
 
 	private void BuildForm()
@@ -2161,5 +2174,267 @@ public class InstallerForm : Form
 		catch
 		{
 		}
+	}
+
+	private void BeginUpdateCheck()
+	{
+		if (updatePromptShown)
+		{
+			return;
+		}
+		Task.Run((Func<Task>)CheckForUpdateAsync);
+	}
+
+	private async Task CheckForUpdateAsync()
+	{
+		try
+		{
+			ServicePointManager.SecurityProtocol |= SecurityProtocolType.Tls12;
+			string responseJson;
+			using (WebClient webClient = new WebClient())
+			{
+				webClient.Headers[HttpRequestHeader.UserAgent] = "PcNinja-SmartOfficeInstaller";
+				webClient.Headers[HttpRequestHeader.Accept] = "application/vnd.github+json";
+				responseJson = await webClient.DownloadStringTaskAsync(UPDATE_MANIFEST_URL);
+			}
+
+			string manifestJson = DecodeGitHubContentPayload(responseJson);
+			UpdateManifest manifest = ReadJson<UpdateManifest>(manifestJson);
+			if (!IsValidUpdateManifest(manifest))
+			{
+				return;
+			}
+
+			Version currentVersion = GetCurrentFileVersion();
+			Version latestVersion;
+			if (!Version.TryParse(manifest.Version, out latestVersion))
+			{
+				return;
+			}
+			if (latestVersion.CompareTo(currentVersion) <= 0)
+			{
+				return;
+			}
+			if (IsDisposed || !IsHandleCreated)
+			{
+				return;
+			}
+
+			BeginInvoke((MethodInvoker)delegate
+			{
+				ShowUpdatePrompt(manifest, currentVersion, latestVersion);
+			});
+		}
+		catch
+		{
+		}
+	}
+
+	private void ShowUpdatePrompt(UpdateManifest manifest, Version currentVersion, Version latestVersion)
+	{
+		if (updatePromptShown || IsDisposed)
+		{
+			return;
+		}
+		updatePromptShown = true;
+
+		string latestLabel = string.IsNullOrWhiteSpace(manifest.PublicLabel) ? "v" + latestVersion : manifest.PublicLabel;
+		string currentLabel = currentVersion.ToString();
+		string message = "A new version of PcNinja Smart Office Installer is available." +
+			"\r\n\r\nCurrent version: " + currentLabel +
+			"\r\nLatest version: " + latestLabel +
+			"\r\n\r\nOpen the GitHub download now?";
+
+		DialogResult result = MessageBox.Show(this, message, "Update available", MessageBoxButtons.YesNo, MessageBoxIcon.Information);
+		if (result == DialogResult.Yes)
+		{
+			OpenExternalUrl(GetUpdateUrl(manifest));
+		}
+	}
+
+	private static string DecodeGitHubContentPayload(string json)
+	{
+		GitHubContentResponse response;
+		try
+		{
+			response = ReadJson<GitHubContentResponse>(json);
+		}
+		catch
+		{
+			return json;
+		}
+
+		if (response == null || string.IsNullOrWhiteSpace(response.Content) || !string.Equals(response.EncodingName, "base64", StringComparison.OrdinalIgnoreCase))
+		{
+			return json;
+		}
+
+		string encoded = RemoveWhitespace(response.Content);
+		return Encoding.UTF8.GetString(Convert.FromBase64String(encoded));
+	}
+
+	private static T ReadJson<T>(string json) where T : class
+	{
+		if (string.IsNullOrWhiteSpace(json))
+		{
+			return null;
+		}
+		byte[] bytes = Encoding.UTF8.GetBytes(json);
+		using MemoryStream stream = new MemoryStream(bytes);
+		return new DataContractJsonSerializer(typeof(T)).ReadObject(stream) as T;
+	}
+
+	private static string RemoveWhitespace(string value)
+	{
+		if (string.IsNullOrEmpty(value))
+		{
+			return value;
+		}
+		StringBuilder builder = new StringBuilder(value.Length);
+		foreach (char c in value)
+		{
+			if (!char.IsWhiteSpace(c))
+			{
+				builder.Append(c);
+			}
+		}
+		return builder.ToString();
+	}
+
+	private static bool IsValidUpdateManifest(UpdateManifest manifest)
+	{
+		if (manifest == null || manifest.Portable == null)
+		{
+			return false;
+		}
+		if (string.IsNullOrWhiteSpace(manifest.Version) || string.IsNullOrWhiteSpace(manifest.Portable.FileName))
+		{
+			return false;
+		}
+		if (!IsHttpsUrl(manifest.Portable.Url))
+		{
+			return false;
+		}
+		if (!string.IsNullOrWhiteSpace(manifest.ReleaseNotesUrl) && !IsHttpsUrl(manifest.ReleaseNotesUrl))
+		{
+			return false;
+		}
+		string sha256 = (manifest.Portable.Sha256 ?? "").Trim();
+		if (sha256.Length != 64)
+		{
+			return false;
+		}
+		foreach (char c in sha256)
+		{
+			if (!Uri.IsHexDigit(c))
+			{
+				return false;
+			}
+		}
+		return true;
+	}
+
+	private static Version GetCurrentFileVersion()
+	{
+		string fileVersion = FileVersionInfo.GetVersionInfo(Assembly.GetExecutingAssembly().Location).FileVersion;
+		Version version;
+		if (Version.TryParse(fileVersion, out version))
+		{
+			return version;
+		}
+		return new Version(0, 0, 0, 0);
+	}
+
+	private static string GetUpdateUrl(UpdateManifest manifest)
+	{
+		if (manifest != null && manifest.Portable != null && IsHttpsUrl(manifest.Portable.Url))
+		{
+			return manifest.Portable.Url;
+		}
+		if (manifest != null && IsHttpsUrl(manifest.ReleaseNotesUrl))
+		{
+			return manifest.ReleaseNotesUrl;
+		}
+		return GITHUB_RELEASES_URL;
+	}
+
+	private static bool IsHttpsUrl(string url)
+	{
+		Uri uri;
+		return Uri.TryCreate(url, UriKind.Absolute, out uri) && string.Equals(uri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase);
+	}
+
+	private static void OpenExternalUrl(string url)
+	{
+		try
+		{
+			Process.Start(new ProcessStartInfo
+			{
+				FileName = url,
+				UseShellExecute = true
+			});
+		}
+		catch (Exception ex)
+		{
+			MessageBox.Show("Could not open the update link.\r\n\r\n" + ex.Message, "Update link", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+		}
+	}
+
+	[DataContract]
+	private sealed class GitHubContentResponse
+	{
+		[DataMember(Name = "encoding")]
+		public string EncodingName { get; set; }
+
+		[DataMember(Name = "content")]
+		public string Content { get; set; }
+	}
+
+	[DataContract]
+	private sealed class UpdateManifest
+	{
+		[DataMember(Name = "channel")]
+		public string Channel { get; set; }
+
+		[DataMember(Name = "publicLabel")]
+		public string PublicLabel { get; set; }
+
+		[DataMember(Name = "version")]
+		public string Version { get; set; }
+
+		[DataMember(Name = "minimumSupportedVersion")]
+		public string MinimumSupportedVersion { get; set; }
+
+		[DataMember(Name = "releaseNotesUrl")]
+		public string ReleaseNotesUrl { get; set; }
+
+		[DataMember(Name = "portable")]
+		public UpdatePackage Portable { get; set; }
+
+		[DataMember(Name = "signing")]
+		public UpdateSigning Signing { get; set; }
+	}
+
+	[DataContract]
+	private sealed class UpdatePackage
+	{
+		[DataMember(Name = "fileName")]
+		public string FileName { get; set; }
+
+		[DataMember(Name = "url")]
+		public string Url { get; set; }
+
+		[DataMember(Name = "sha256")]
+		public string Sha256 { get; set; }
+	}
+
+	[DataContract]
+	private sealed class UpdateSigning
+	{
+		[DataMember(Name = "required")]
+		public bool Required { get; set; }
+
+		[DataMember(Name = "expectedPublisher")]
+		public string ExpectedPublisher { get; set; }
 	}
 }
