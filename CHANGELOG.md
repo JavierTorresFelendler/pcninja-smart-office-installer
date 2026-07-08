@@ -1,5 +1,13 @@
 # Changelog
 
+## v3.3.6
+
+- Added a persistent header update button so users can still open the newest GitHub release after dismissing the startup update prompt.
+- The update button now shows `Check updates`, `Update vX.Y.Z`, or `Up to date` based on the GitHub manifest result.
+- Manual update checks now tell the user when the running version is already current.
+- Expanded the update manifest regression check to cover the persistent update button flow.
+- Windows file version: `3.3.6.0`.
+
 ## v3.3.5
 
 - Public stable release promoted from the GitHub update notification RC line.

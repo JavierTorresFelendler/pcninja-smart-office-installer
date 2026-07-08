@@ -84,7 +84,11 @@ $requiredSourceSnippets = @(
     "DownloadStringTaskAsync",
     "DataContractJsonSerializer",
     "FileVersionInfo.GetVersionInfo",
-    "Update available"
+    "Update available",
+    "Check updates",
+    "Up to date",
+    "SetUpdateButtonAvailable",
+    "OnUpdateButtonClick"
 )
 
 foreach ($snippet in $requiredSourceSnippets) {

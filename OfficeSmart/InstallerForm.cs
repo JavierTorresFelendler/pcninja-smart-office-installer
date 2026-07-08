@@ -88,6 +88,12 @@ public class InstallerForm : Form
 
 	private bool updatePromptShown;
 
+	private bool updateCheckInProgress;
+
+	private UpdateManifest availableUpdateManifest;
+
+	private Version availableUpdateVersion;
+
 	private int step;
 
 	private Dictionary<string, CheckBox> cbLTSCApps = new Dictionary<string, CheckBox>();
@@ -119,6 +125,8 @@ public class InstallerForm : Form
 	private Button btnBack;
 
 	private Button btnNext;
+
+	private Button btnUpdate;
 
 	private Label lblHint;
 
@@ -214,7 +222,7 @@ public class InstallerForm : Form
 		BuildWorker();
 		Shown += delegate
 		{
-			BeginUpdateCheck();
+			BeginUpdateCheck(manual: false);
 		};
 	}
 
@@ -283,6 +291,13 @@ public class InstallerForm : Form
 			ForeColor = MUTED,
 			BackColor = Color.Transparent
 		});
+		btnUpdate = Btn("Check updates", new Point(584, 26), new Size(136, 30), primary: false);
+		btnUpdate.Font = new Font("Segoe UI", 8.5f, FontStyle.Bold);
+		btnUpdate.Click += delegate
+		{
+			OnUpdateButtonClick();
+		};
+		hdr.Controls.Add(btnUpdate);
 		base.Controls.Add(hdr);
 	}
 
@@ -2176,16 +2191,31 @@ public class InstallerForm : Form
 		}
 	}
 
-	private void BeginUpdateCheck()
+	private void OnUpdateButtonClick()
 	{
-		if (updatePromptShown)
+		if (availableUpdateManifest != null)
+		{
+			OpenExternalUrl(GetUpdateUrl(availableUpdateManifest));
+			return;
+		}
+		BeginUpdateCheck(manual: true);
+	}
+
+	private void BeginUpdateCheck(bool manual)
+	{
+		if (updateCheckInProgress)
 		{
 			return;
 		}
-		Task.Run((Func<Task>)CheckForUpdateAsync);
+		updateCheckInProgress = true;
+		SetUpdateButtonChecking();
+		Task.Run(delegate
+		{
+			return CheckForUpdateAsync(manual);
+		});
 	}
 
-	private async Task CheckForUpdateAsync()
+	private async Task CheckForUpdateAsync(bool manual)
 	{
 		try
 		{
@@ -2202,6 +2232,7 @@ public class InstallerForm : Form
 			UpdateManifest manifest = ReadJson<UpdateManifest>(manifestJson);
 			if (!IsValidUpdateManifest(manifest))
 			{
+				CompleteUpdateCheckFailure(manual, "The update manifest is not valid.");
 				return;
 			}
 
@@ -2209,10 +2240,7 @@ public class InstallerForm : Form
 			Version latestVersion;
 			if (!Version.TryParse(manifest.Version, out latestVersion))
 			{
-				return;
-			}
-			if (latestVersion.CompareTo(currentVersion) <= 0)
-			{
+				CompleteUpdateCheckFailure(manual, "The update version is not valid.");
 				return;
 			}
 			if (IsDisposed || !IsHandleCreated)
@@ -2222,12 +2250,87 @@ public class InstallerForm : Form
 
 			BeginInvoke((MethodInvoker)delegate
 			{
-				ShowUpdatePrompt(manifest, currentVersion, latestVersion);
+				CompleteUpdateCheck(manual, manifest, currentVersion, latestVersion);
 			});
 		}
-		catch
+		catch (Exception ex)
 		{
+			CompleteUpdateCheckFailure(manual, ex.Message);
 		}
+	}
+
+	private void CompleteUpdateCheck(bool manual, UpdateManifest manifest, Version currentVersion, Version latestVersion)
+	{
+		updateCheckInProgress = false;
+		if (latestVersion.CompareTo(currentVersion) > 0)
+		{
+			availableUpdateManifest = manifest;
+			availableUpdateVersion = latestVersion;
+			SetUpdateButtonAvailable(manifest, latestVersion);
+			ShowUpdatePrompt(manifest, currentVersion, latestVersion);
+			return;
+		}
+
+		availableUpdateManifest = null;
+		availableUpdateVersion = null;
+		SetUpdateButtonUpToDate();
+		if (manual)
+		{
+			MessageBox.Show(this, "You are running the latest version.", "Updates", MessageBoxButtons.OK, MessageBoxIcon.Information);
+		}
+	}
+
+	private void CompleteUpdateCheckFailure(bool manual, string message)
+	{
+		if (IsDisposed || !IsHandleCreated)
+		{
+			return;
+		}
+		BeginInvoke((MethodInvoker)delegate
+		{
+			updateCheckInProgress = false;
+			SetUpdateButtonIdle();
+			if (manual)
+			{
+				MessageBox.Show(this, "Could not check for updates.\r\n\r\n" + message, "Updates", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+			}
+		});
+	}
+
+	private void SetUpdateButtonIdle()
+	{
+		SetUpdateButtonState("Check updates", CARD2, MUTED, BORDER, CARD);
+	}
+
+	private void SetUpdateButtonChecking()
+	{
+		SetUpdateButtonState("Checking...", CARD2, MUTED, BORDER, CARD2);
+	}
+
+	private void SetUpdateButtonAvailable(UpdateManifest manifest, Version latestVersion)
+	{
+		string label = string.IsNullOrWhiteSpace(manifest.PublicLabel) ? "v" + latestVersion : manifest.PublicLabel;
+		SetUpdateButtonState("Update " + label, Color.FromArgb(61, 44, 12), WARNC, WARNC, Color.FromArgb(82, 61, 18));
+	}
+
+	private void SetUpdateButtonUpToDate()
+	{
+		SetUpdateButtonState("Up to date", Color.FromArgb(12, 48, 26), GREENC, GREENC, Color.FromArgb(15, 66, 34));
+	}
+
+	private void SetUpdateButtonState(string text, Color backColor, Color foreColor, Color borderColor, Color hoverColor)
+	{
+		if (btnUpdate == null)
+		{
+			return;
+		}
+		btnUpdate.Text = text;
+		btnUpdate.Enabled = true;
+		btnUpdate.BackColor = backColor;
+		btnUpdate.ForeColor = foreColor;
+		btnUpdate.FlatAppearance.BorderColor = borderColor;
+		btnUpdate.FlatAppearance.BorderSize = 1;
+		btnUpdate.FlatAppearance.MouseOverBackColor = hoverColor;
 	}
 
 	private void ShowUpdatePrompt(UpdateManifest manifest, Version currentVersion, Version latestVersion)

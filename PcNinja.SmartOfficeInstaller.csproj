@@ -1,6 +1,6 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk.WindowsDesktop">
   <PropertyGroup>
-    <AssemblyName>OfficeSmart-v3.3.5</AssemblyName>
+    <AssemblyName>OfficeSmart-v3.3.6</AssemblyName>
     <GenerateAssemblyInfo>False</GenerateAssemblyInfo>
     <OutputType>WinExe</OutputType>
     <UseWindowsForms>True</UseWindowsForms>
@@ -24,5 +24,6 @@
   </ItemGroup>
   <ItemGroup />
 </Project>
+
 
 
