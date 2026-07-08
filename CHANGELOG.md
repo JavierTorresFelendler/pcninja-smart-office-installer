@@ -1,5 +1,14 @@
 # Changelog
 
+## v3.3.5
+
+- Public stable release promoted from the GitHub update notification RC line.
+- Added a GitHub update check based on the public `update-manifest.json` flow used by PcNinja WinUpdate Tool.
+- The app now checks GitHub on startup and prompts the user when a newer Smart Office Installer release is available.
+- The update prompt opens the GitHub-hosted release asset URL instead of attempting to replace the running executable.
+- Added `public-release/update-manifest.json` and a regression check for manifest shape, HTTPS URLs, SHA256 format, and updater source wiring.
+- Windows file version: `3.3.5.1`.
+
 ## v3.3.5-rc1
 
 - Added a GitHub update check based on the public `update-manifest.json` flow used by PcNinja WinUpdate Tool.
