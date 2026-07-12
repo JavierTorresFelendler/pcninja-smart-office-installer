@@ -1,5 +1,10 @@
 # Changelog
 
+## v3.3.7
+
+- Replaced the header logo mark with "JT" initials.
+- Windows file version: `3.3.7.0`.
+
 ## v3.3.6
 
 - Added a persistent header update button so users can still open the newest GitHub release after dismissing the startup update prompt.
