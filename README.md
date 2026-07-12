@@ -54,7 +54,7 @@ Verified release EXE files are kept locally under `release-assets\` for upload t
 Verified stable `v3.3.7` SHA256:
 
 ```text
-Pending - will be filled in once the release asset is downloaded and verified.
+2f15ee8d1adc66a2066137cde3bf6af16a511a3e96c16c5621d33f68c7111a84
 ```
 
 ## Notes
