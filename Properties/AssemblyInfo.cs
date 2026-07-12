@@ -9,7 +9,7 @@ using System.Runtime.Versioning;
 [assembly: AssemblyCompany("PcNinja.Pro")]
 [assembly: AssemblyProduct("PcNinja Smart Office Installer")]
 [assembly: AssemblyCopyright("(c) 2025 PcNinja.Pro - www.pcninja.pro")]
-[assembly: AssemblyFileVersion("3.3.6.0")]
+[assembly: AssemblyFileVersion("3.3.7.0")]
 [assembly: ComVisible(false)]
 [assembly: AssemblyVersion("3.3.0.0")]
 
