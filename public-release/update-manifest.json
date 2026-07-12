@@ -1,13 +1,13 @@
 {
   "channel": "stable",
-  "publicLabel": "v3.3.6",
-  "version": "3.3.6.0",
+  "publicLabel": "v3.3.7",
+  "version": "3.3.7.0",
   "minimumSupportedVersion": "3.3.4.0",
-  "releaseNotesUrl": "https://github.com/JavierTorresFelendler/pcninja-smart-office-installer/releases/tag/v3.3.6",
+  "releaseNotesUrl": "https://github.com/JavierTorresFelendler/pcninja-smart-office-installer/releases/tag/v3.3.7",
   "portable": {
-    "fileName": "OfficeSmart-v3.3.6.exe",
-    "url": "https://github.com/JavierTorresFelendler/pcninja-smart-office-installer/releases/download/v3.3.6/OfficeSmart-v3.3.6.exe",
-    "sha256": "4A988D4C498E53777985999ACD2AFF1562BF4B39E46FBEF0FF9380B5B4A50EB0"
+    "fileName": "OfficeSmart-v3.3.7.exe",
+    "url": "https://github.com/JavierTorresFelendler/pcninja-smart-office-installer/releases/download/v3.3.7/OfficeSmart-v3.3.7.exe",
+    "sha256": "2F15EE8D1ADC66A2066137CDE3BF6AF16A511A3E96C16C5621D33F68C7111A84"
   },
   "signing": {
     "required": false,
