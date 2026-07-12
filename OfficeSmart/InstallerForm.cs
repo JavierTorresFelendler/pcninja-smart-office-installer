@@ -268,9 +268,11 @@ public class InstallerForm : Form
 			{
 				graphics.DrawRectangle(pen, 0, 0, 43, 43);
 			}
-			using Font font = new Font("Segoe UI", 18f, FontStyle.Bold);
+			using Font font = new Font("Segoe UI", 14f, FontStyle.Bold);
 			using SolidBrush brush = new SolidBrush(ACCENT2);
-			graphics.DrawString("N", font, brush, 7f, 5f);
+			string logoText = "JT";
+			SizeF logoSize = graphics.MeasureString(logoText, font);
+			graphics.DrawString(logoText, font, brush, (43f - logoSize.Width) / 2f, (43f - logoSize.Height) / 2f);
 		};
 		hdr.Controls.Add(panel);
 		hdr.Controls.Add(new Label
