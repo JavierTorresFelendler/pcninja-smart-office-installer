@@ -30,10 +30,10 @@ Windows file versions must stay numeric, for example:
 3.3.4.0
 ```
 
-The executable name may include the RC suffix:
+The executable keeps the stable product name during RC testing:
 
 ```text
-OfficeSmart-v3.3.4-rc1.exe
+Smart Office Installer.exe
 ```
 
 ## Required Checks
@@ -52,4 +52,3 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\Test-OfficeSmartPu
 4. Merge `dev` into `main`.
 5. Build a final non-RC executable.
 6. Publish a final GitHub Release.
-

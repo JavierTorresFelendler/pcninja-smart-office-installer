@@ -7,9 +7,8 @@ Executable files are ignored by Git. Upload them to the matching GitHub Release 
 Current verified artifact:
 
 ```text
-OfficeSmart-v3.3.exe
-SHA256: 498922A68EA7A2BCC94B96E5E8A15425BAFE842B6B5613F0304821D634080ED1
-FileVersion/ProductVersion: 3.3.3.1
+Smart Office Installer.exe
+SHA256: 7C1EA50247F529DFBBEB5FAAC4D7705F00CF5EE2296AF9A82AC48A1B84717CC3
+FileVersion/ProductVersion: 3.3.9.0
 AssemblyVersion: 3.3.0.0
 ```
-

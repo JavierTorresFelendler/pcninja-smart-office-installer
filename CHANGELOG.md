@@ -1,5 +1,12 @@
 # Changelog
 
+## v3.3.9
+
+- Renamed the application and release executable to `Smart Office Installer`.
+- Moved the release version to Windows file properties and installed-app metadata instead of the executable filename.
+- Improved offline download progress reporting with observed download size and transfer rate.
+- Windows file version: `3.3.9.0`.
+
 ## v3.3.8
 
 - Restored the previous installer/window icon design with a transparent icon background.

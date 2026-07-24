@@ -61,8 +61,8 @@ foreach ($name in @("fileName", "url", "sha256")) {
     }
 }
 
-if ($manifest.portable.fileName -notmatch '^OfficeSmart-v[0-9A-Za-z.\-]+\.exe$') {
-    Fail "portable.fileName must use the OfficeSmart public EXE naming pattern."
+if ($manifest.portable.fileName -ne 'Smart Office Installer.exe') {
+	Fail "portable.fileName must be Smart Office Installer.exe."
 }
 
 if (-not (Test-HttpsUrl $manifest.portable.url)) {

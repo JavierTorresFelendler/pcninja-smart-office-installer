@@ -34,7 +34,7 @@ function Assert-OfflineNotContains($pattern, $message) {
 }
 
 Assert-Contains 'private\s+const\s+string\s+OFFLINE_PACKAGE_FOLDER\s*=\s*"OFFICE-OFFLINE"' "Offline package folder must be named OFFICE-OFFLINE."
-Assert-Contains 'PcNinja''s Smart Office Installer' "The public app title should use PcNinja's Smart Office Installer."
+Assert-Contains 'Text\s*=\s*"Smart Office Installer"' "The public app title should use Smart Office Installer."
 Assert-Contains 'Auto-activate volume license during installation' "Auto-activation wording should be clear for online and package installs."
 Assert-Contains 'Create offline package only - do not install on this PC' "Offline mode must clearly say it does not install on this PC."
 Assert-Contains 'Create Package' "Offline package mode should use a package-oriented final action label."

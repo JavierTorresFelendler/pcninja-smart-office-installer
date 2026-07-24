@@ -228,7 +228,7 @@ public class InstallerForm : Form
 
 	private void BuildForm()
 	{
-		Text = "PcNinja's Smart Office Installer";
+		Text = "Smart Office Installer";
 		base.ClientSize = new Size(740, 800);
 		MinimumSize = new Size(756, 839);
 		MaximumSize = MinimumSize;
@@ -277,7 +277,7 @@ public class InstallerForm : Form
 		hdr.Controls.Add(panel);
 		hdr.Controls.Add(new Label
 		{
-			Text = "PcNinja's Smart Office Installer",
+			Text = "Smart Office Installer",
 			Location = new Point(72, 16),
 			Size = new Size(500, 30),
 			Font = new Font("Segoe UI", 14f, FontStyle.Bold),
@@ -1622,7 +1622,7 @@ public class InstallerForm : Form
 			btnBack.Enabled = false;
 			txtLog.Clear();
 			pbar.Value = 0;
-			AppLog("PcNinja Smart Office Installer - starting...");
+			AppLog("Smart Office Installer - starting...");
 			worker.RunWorkerAsync();
 		}
 	}
@@ -1772,7 +1772,7 @@ public class InstallerForm : Form
 			UseShellExecute = false,
 			CreateNoWindow = true
 		});
-		process.WaitForExit();
+		MonitorOfflineDownloadProgress(bw, process, stagingRoot);
 		TryDel(text);
 		if (process.ExitCode != 0)
 		{
@@ -1787,7 +1787,7 @@ public class InstallerForm : Form
 		CopyDirectoryContents(text2, packagePath);
 		File.Copy(Path.Combine(extractDir, "setup.exe"), Path.Combine(packagePath, "setup.exe"), overwrite: true);
 		File.Copy(xmlFile, Path.Combine(packagePath, "Office_Config.xml"), overwrite: true);
-		string contents = "@echo off\r\nnet session >nul 2>&1\r\nif %errorLevel% neq 0 (\r\n    echo.\r\n    echo  ERROR: Must be run as Administrator.\r\n    echo  Right-click Install-Office.bat and choose Run as administrator.\r\n    echo.\r\n    pause\r\n    exit /b 1\r\n)\r\necho  PcNinja Smart Office Installer - Offline Mode\r\necho.\r\ncd /d \"%~dp0\"\r\necho  Starting installation, please wait...\r\nsetup.exe /configure Office_Config.xml\r\necho.\r\necho  Done. Press any key to exit.\r\npause > nul\r\n";
+		string contents = "@echo off\r\nnet session >nul 2>&1\r\nif %errorLevel% neq 0 (\r\n    echo.\r\n    echo  ERROR: Must be run as Administrator.\r\n    echo  Right-click Install-Office.bat and choose Run as administrator.\r\n    echo.\r\n    pause\r\n    exit /b 1\r\n)\r\necho  Smart Office Installer - Offline Mode\r\necho.\r\ncd /d \"%~dp0\"\r\necho  Starting installation, please wait...\r\nsetup.exe /configure Office_Config.xml\r\necho.\r\necho  Done. Press any key to exit.\r\npause > nul\r\n";
 		File.WriteAllText(Path.Combine(packagePath, "Install-Office.bat"), contents, Encoding.ASCII);
 		Rep(bw, 96, "Cleaning up temporary files...");
 		TryDel(odtExe);
@@ -1795,6 +1795,38 @@ public class InstallerForm : Form
 		TryDelDir(extractDir);
 		TryDelDir(stagingRoot);
 		Rep(bw, 100, "Done!  Copy the entire \"" + packagePath + "\" folder to the target machine\r\nand run Install-Office.bat as Administrator.");
+	}
+
+	private void MonitorOfflineDownloadProgress(BackgroundWorker bw, Process process, string stagingRoot)
+	{
+		string officeRoot = Path.Combine(stagingRoot, "Office");
+		DateTime started = DateTime.UtcNow;
+		DateTime lastReport = DateTime.MinValue;
+		long lastBytes = 0L;
+		DateTime lastSample = started;
+		int progress = 52;
+		while (!process.WaitForExit(1000))
+		{
+			long bytes = GetDirectorySizeSafe(officeRoot);
+			DateTime now = DateTime.UtcNow;
+			double elapsedMinutes = Math.Max(0.1, (now - started).TotalMinutes);
+			double sampleMinutes = Math.Max(0.1, (now - lastSample).TotalMinutes);
+			double totalMb = bytes / 1048576.0;
+			double mbPerMinute = Math.Max(0.0, ((bytes - lastBytes) / 1048576.0) / sampleMinutes);
+			if (bytes > lastBytes || (now - lastReport).TotalSeconds >= 10.0)
+			{
+				int activityProgress = 52 + Math.Min(36, (int)Math.Floor(elapsedMinutes * 1.5));
+				if (bytes > lastBytes)
+				{
+					activityProgress = Math.Max(activityProgress, progress + 1);
+				}
+				progress = Math.Min(88, Math.Max(progress, activityProgress));
+				Rep(bw, progress, string.Format("Downloading Office source files... {0:N0} MB downloaded ({1:N1} MB/min)", totalMb, mbPerMinute));
+				lastReport = now;
+				lastBytes = bytes;
+				lastSample = now;
+			}
+		}
 	}
 
 	private string ResolveOfflinePackagePath(string selectedPath)
@@ -1989,6 +2021,33 @@ public class InstallerForm : Form
 		}
 		catch
 		{
+		}
+	}
+
+	private static long GetDirectorySizeSafe(string path)
+	{
+		try
+		{
+			if (!Directory.Exists(path))
+			{
+				return 0L;
+			}
+			long total = 0L;
+			foreach (string file in Directory.GetFiles(path, "*", SearchOption.AllDirectories))
+			{
+				try
+				{
+					total += new FileInfo(file).Length;
+				}
+				catch
+				{
+				}
+			}
+			return total;
+		}
+		catch
+		{
+			return 0L;
 		}
 	}
 
@@ -2345,7 +2404,7 @@ public class InstallerForm : Form
 
 		string latestLabel = string.IsNullOrWhiteSpace(manifest.PublicLabel) ? "v" + latestVersion : manifest.PublicLabel;
 		string currentLabel = currentVersion.ToString();
-		string message = "A new version of PcNinja Smart Office Installer is available." +
+		string message = "A new version of Smart Office Installer is available." +
 			"\r\n\r\nCurrent version: " + currentLabel +
 			"\r\nLatest version: " + latestLabel +
 			"\r\n\r\nOpen the GitHub download now?";

@@ -49,8 +49,8 @@ The check must build successfully, confirm version metadata, and return no sensi
 ## Versioning
 
 - `AssemblyVersion` uses the stable API-style version, currently `3.3.0.0`.
-- `AssemblyFileVersion` and Windows ProductVersion use the precise release version, currently `3.3.3.1`.
-- The executable name currently follows `OfficeSmart-v3.3.exe`.
+- `AssemblyFileVersion` and Windows ProductVersion use the precise release version, currently `3.3.9.0`.
+- The executable name is `Smart Office Installer.exe`; release versions are stored in Windows file metadata rather than the filename.
 - When preparing a new public release, update `Properties\AssemblyInfo.cs`, `README.md`, `CHANGELOG.md`, and GitHub release notes together.
 
 ## Release Flow

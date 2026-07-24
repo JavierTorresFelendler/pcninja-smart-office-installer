@@ -30,12 +30,12 @@ $assemblyText = [regex]::Replace($assemblyText, 'AssemblyFileVersion\("[^"]+"\)'
 Set-Content -LiteralPath $assemblyInfo -Value $assemblyText -Encoding UTF8
 
 if ($ExeName) {
-    if ($ExeName -notmatch '^OfficeSmart-v[0-9A-Za-z.\-]+$') {
-        throw "ExeName must look like OfficeSmart-v3.4 or OfficeSmart-v3.4-rc1."
+    if ($ExeName -match '[<>:"/\\|?*]' -or $ExeName.EndsWith('.') -or $ExeName.EndsWith(' ')) {
+        throw "ExeName contains characters that are invalid for a Windows file name."
     }
 
     $projectText = Get-Content -LiteralPath $project -Raw
-    $projectText = [regex]::Replace($projectText, '<AssemblyName>OfficeSmart-v[^<]+</AssemblyName>', "<AssemblyName>$ExeName</AssemblyName>")
+    $projectText = [regex]::Replace($projectText, '<AssemblyName>[^<]+</AssemblyName>', "<AssemblyName>$ExeName</AssemblyName>")
     Set-Content -LiteralPath $project -Value $projectText -Encoding UTF8
 }
 elseif ($ExeMinorName) {
@@ -44,7 +44,7 @@ elseif ($ExeMinorName) {
     }
 
     $projectText = Get-Content -LiteralPath $project -Raw
-    $projectText = [regex]::Replace($projectText, '<AssemblyName>OfficeSmart-v[^<]+</AssemblyName>', "<AssemblyName>OfficeSmart-v$ExeMinorName</AssemblyName>")
+    $projectText = [regex]::Replace($projectText, '<AssemblyName>[^<]+</AssemblyName>', '<AssemblyName>Smart Office Installer</AssemblyName>')
     Set-Content -LiteralPath $project -Value $projectText -Encoding UTF8
 }
 
