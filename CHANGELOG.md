@@ -1,5 +1,12 @@
 # Changelog
 
+## v3.3.8
+
+- Restored the previous installer/window icon design with a transparent icon background.
+- Replaced the in-window brand image with the new PcNinja logo asset.
+- Removed the black background from the in-window brand image so it renders transparently.
+- Windows file version: `3.3.8.0`.
+
 ## v3.3.7
 
 - Replaced the header logo mark with "JT" initials.
