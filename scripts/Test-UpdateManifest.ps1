@@ -61,8 +61,13 @@ foreach ($name in @("fileName", "url", "sha256")) {
     }
 }
 
-if ($manifest.portable.fileName -ne 'Smart.Office.Installer.exe') {
-	Fail "portable.fileName must be Smart.Office.Installer.exe, matching GitHub's release asset name normalization."
+if ($manifest.portable.fileName -ne 'Smart Office Installer.exe') {
+	Fail "portable.fileName must be Smart Office Installer.exe."
+}
+
+$expectedDownloadUrl = 'https://github.com/JavierTorresFelendler/pcninja-smart-office-installer/releases/latest/download/SmartOfficeInstaller.exe'
+if ($manifest.portable.url -ne $expectedDownloadUrl) {
+	Fail "portable.url must use the stable SmartOfficeInstaller.exe latest-release URL."
 }
 
 if (-not (Test-HttpsUrl $manifest.portable.url)) {
