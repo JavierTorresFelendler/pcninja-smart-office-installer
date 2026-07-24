@@ -61,8 +61,8 @@ foreach ($name in @("fileName", "url", "sha256")) {
     }
 }
 
-if ($manifest.portable.fileName -ne 'Smart Office Installer.exe') {
-	Fail "portable.fileName must be Smart Office Installer.exe."
+if ($manifest.portable.fileName -ne 'Smart.Office.Installer.exe') {
+	Fail "portable.fileName must be Smart.Office.Installer.exe, matching GitHub's release asset name normalization."
 }
 
 if (-not (Test-HttpsUrl $manifest.portable.url)) {
