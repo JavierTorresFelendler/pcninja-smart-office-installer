@@ -2,7 +2,7 @@
 
 Smart Office Installer is a Windows WinForms utility for installing or removing Microsoft Office through the official Microsoft Office Deployment Tool.
 
-The current stable release is `v3.3.9`, with Windows file version `3.3.9.0`.
+The current stable release is `v3.3.10`, with Windows file version `3.3.10.0`.
 
 The executable is named `Smart Office Installer.exe`; its version is shown in Windows file properties and installed-app metadata.
 
@@ -51,10 +51,10 @@ which builds the app and copies the executable into `artifacts\`.
 
 Verified release EXE files are kept locally under `release-assets\` for upload to GitHub Releases. They are intentionally ignored by Git so the repository stays source-focused.
 
-Verified stable `v3.3.9` SHA256:
+Verified stable `v3.3.10` SHA256:
 
 ```text
-4d3fdf01d99930868ce64b702b36bb65504ef7c757e395d5cd18966e738e7012
+18761e60b81a1ec68f600d7e8fdc61989f48bbf6beefa3ee14266c2c30605ff2
 ```
 
 ## Notes

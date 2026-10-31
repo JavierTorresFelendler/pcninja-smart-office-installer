@@ -1,5 +1,10 @@
 # Changelog
 
+## v3.3.10
+
+- Fixed installer layout on small displays so the window fits the available screen area and key controls remain accessible.
+- Windows file version: `3.3.10.0`.
+
 ## v3.3.9
 
 - Renamed the application and release executable to `Smart Office Installer`.
