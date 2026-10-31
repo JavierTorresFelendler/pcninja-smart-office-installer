@@ -118,6 +118,8 @@ public class InstallerForm : Form
 
 	private Panel pStepBar;
 
+	private Panel pHeader;
+
 	private Panel pContent;
 
 	private Panel pFooter;
@@ -129,6 +131,10 @@ public class InstallerForm : Form
 	private Button btnUpdate;
 
 	private Label lblHint;
+
+	private Label lblTitle;
+
+	private Label lblSubtitle;
 
 	private Panel fCardLTSC;
 
@@ -219,6 +225,11 @@ public class InstallerForm : Form
 		offPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, OFFLINE_PACKAGE_FOLDER);
 		_ = new string[9] { "Word", "Excel", "PowerPoint", "Outlook", "OneNote", "Access", "Publisher", "Teams", "OneDrive" };
 		BuildForm();
+		Resize += OnResponsiveResize;
+		Load += delegate
+		{
+			FitToWorkingArea();
+		};
 		BuildWorker();
 		Shown += delegate
 		{
@@ -230,8 +241,6 @@ public class InstallerForm : Form
 	{
 		Text = "Smart Office Installer";
 		base.ClientSize = new Size(740, 800);
-		MinimumSize = new Size(756, 839);
-		MaximumSize = MinimumSize;
 		base.StartPosition = FormStartPosition.CenterScreen;
 		BackColor = BG;
 		ForeColor = TXT;
@@ -247,12 +256,48 @@ public class InstallerForm : Form
 		Render();
 	}
 
+	private void FitToWorkingArea()
+	{
+		Rectangle workingArea = Screen.FromControl(this).WorkingArea;
+		int nonClientWidth = Width - ClientSize.Width;
+		int nonClientHeight = Height - ClientSize.Height;
+		int availableClientWidth = Math.Max(1, workingArea.Width - nonClientWidth);
+		int availableClientHeight = Math.Max(1, workingArea.Height - nonClientHeight);
+
+		ClientSize = new Size(Math.Min(FW, availableClientWidth), Math.Min(FH, availableClientHeight));
+		Location = new Point(
+			workingArea.Left + (workingArea.Width - Width) / 2,
+			workingArea.Top + (workingArea.Height - Height) / 2);
+	}
+
+	private void OnResponsiveResize(object sender, EventArgs e)
+	{
+		int clientWidth = ClientSize.Width;
+		int contentTop = HDR_H + STEP_H;
+		int contentHeight = Math.Max(0, ClientSize.Height - contentTop - FOOT_H);
+
+		pHeader.Width = clientWidth;
+		pStepBar.Width = clientWidth;
+		pContent.SetBounds(0, contentTop, clientWidth, contentHeight);
+		pContent.AutoScrollMinSize = new Size(FW, 0);
+		pFooter.SetBounds(0, ClientSize.Height - FOOT_H, clientWidth, FOOT_H);
+
+		btnUpdate.Left = clientWidth - btnUpdate.Width - 20;
+		lblTitle.Width = Math.Max(0, btnUpdate.Left - lblTitle.Left - 12);
+		lblSubtitle.Width = Math.Max(0, btnUpdate.Left - lblSubtitle.Left - 12);
+
+		btnBack.Left = clientWidth - btnBack.Width - btnNext.Width - 24;
+		btnNext.Left = btnBack.Right + 10;
+		lblHint.Width = Math.Max(0, btnBack.Left - lblHint.Left - 10);
+		pStepBar.Invalidate();
+	}
+
 	private void BuildHeader()
 	{
-		Panel hdr = FlatPanel(0, 0, 740, 84, CARD);
-		hdr.Paint += delegate(object s, PaintEventArgs e)
+		pHeader = FlatPanel(0, 0, FW, HDR_H, CARD);
+		pHeader.Paint += delegate(object s, PaintEventArgs e)
 		{
-			DrawBorderBottom(e.Graphics, hdr.Width, hdr.Height, BORDER);
+			DrawBorderBottom(e.Graphics, pHeader.Width, pHeader.Height, BORDER);
 		};
 		Panel panel = new Panel
 		{
@@ -274,8 +319,8 @@ public class InstallerForm : Form
 			SizeF logoSize = graphics.MeasureString(logoText, font);
 			graphics.DrawString(logoText, font, brush, (43f - logoSize.Width) / 2f, (43f - logoSize.Height) / 2f);
 		};
-		hdr.Controls.Add(panel);
-		hdr.Controls.Add(new Label
+		pHeader.Controls.Add(panel);
+		lblTitle = new Label
 		{
 			Text = "Smart Office Installer",
 			Location = new Point(72, 16),
@@ -283,8 +328,9 @@ public class InstallerForm : Form
 			Font = new Font("Segoe UI", 14f, FontStyle.Bold),
 			ForeColor = TXT,
 			BackColor = Color.Transparent
-		});
-		hdr.Controls.Add(new Label
+		};
+		pHeader.Controls.Add(lblTitle);
+		lblSubtitle = new Label
 		{
 			Text = "Volume Deployment Tool by PcNinja.Pro",
 			Location = new Point(73, 50),
@@ -292,41 +338,43 @@ public class InstallerForm : Form
 			Font = new Font("Segoe UI", 9f),
 			ForeColor = MUTED,
 			BackColor = Color.Transparent
-		});
+		};
+		pHeader.Controls.Add(lblSubtitle);
 		btnUpdate = Btn("Check updates", new Point(584, 26), new Size(136, 30), primary: false);
 		btnUpdate.Font = new Font("Segoe UI", 8.5f, FontStyle.Bold);
 		btnUpdate.Click += delegate
 		{
 			OnUpdateButtonClick();
 		};
-		hdr.Controls.Add(btnUpdate);
-		base.Controls.Add(hdr);
+		pHeader.Controls.Add(btnUpdate);
+		base.Controls.Add(pHeader);
 	}
 
 	private void BuildStepBar()
 	{
-		pStepBar = FlatPanel(0, 84, 740, 44, CARD);
+		pStepBar = FlatPanel(0, HDR_H, FW, STEP_H, CARD);
 		pStepBar.Paint += OnStepBarPaint;
 		base.Controls.Add(pStepBar);
 	}
 
 	private void BuildContentArea()
 	{
-		int num = 128;
-		int num2 = 800 - num - 60;
+		int num = HDR_H + STEP_H;
+		int num2 = FH - num - FOOT_H;
 		pContent = new Panel
 		{
 			Location = new Point(0, num),
-			Size = new Size(740, num2),
+			Size = new Size(FW, num2),
 			BackColor = BG,
-			AutoScroll = true
+			AutoScroll = true,
+			AutoScrollMinSize = new Size(FW, 0)
 		};
 		base.Controls.Add(pContent);
 	}
 
 	private void BuildFooter()
 	{
-		pFooter = FlatPanel(0, 740, 740, 60, CARD);
+		pFooter = FlatPanel(0, FH - FOOT_H, FW, FOOT_H, CARD);
 		pFooter.Paint += delegate(object s, PaintEventArgs e)
 		{
 			DrawBorderTop(e.Graphics, pFooter.Width, BORDER);
