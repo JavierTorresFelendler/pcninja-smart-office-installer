@@ -182,6 +182,10 @@ public class InstallerForm : Form
 
 	private PictureBox familyLogo;
 
+	private PictureBox headerLogo;
+
+	private bool compactLayout;
+
 	private LinkLabel familyWebsite;
 
 	private int familyWebsiteFullTop;
@@ -292,7 +296,11 @@ public class InstallerForm : Form
 			foreach (Control panel in pContent.Controls)
 				panel.Height = contentHeight;
 			bool compact = clientWidth < FW || contentHeight < familyWebsiteFullTop + familyWebsite.Height;
+			compactLayout = compact;
 			familyLogo.Visible = !compact;
+			headerLogo.Image = familyLogo.Image;
+			headerLogo.Visible = compact && headerLogo.Image != null;
+			headerLogo.Parent.Invalidate();
 			familyWebsite.Top = compact ? lblFamilyNote.Bottom + 8 : familyWebsiteFullTop;
 		}
 
@@ -327,12 +335,22 @@ public class InstallerForm : Form
 			{
 				graphics.DrawRectangle(pen, 0, 0, 43, 43);
 			}
+			if (compactLayout && familyLogo?.Image != null) return;
 			using Font font = new Font("Segoe UI", 14f, FontStyle.Bold);
 			using SolidBrush brush = new SolidBrush(ACCENT2);
 			string logoText = "JT";
 			SizeF logoSize = graphics.MeasureString(logoText, font);
 			graphics.DrawString(logoText, font, brush, (43f - logoSize.Width) / 2f, (43f - logoSize.Height) / 2f);
 		};
+		headerLogo = new PictureBox
+		{
+			Dock = DockStyle.Fill,
+			SizeMode = PictureBoxSizeMode.Zoom,
+			BackColor = Color.Transparent,
+			Visible = false,
+			AccessibleName = "PcNinja logo"
+		};
+		panel.Controls.Add(headerLogo);
 		pHeader.Controls.Add(panel);
 		lblTitle = new Label
 		{

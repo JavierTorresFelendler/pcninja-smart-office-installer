@@ -18,6 +18,7 @@ try {
     $form.Show()
     [System.Windows.Forms.Application]::DoEvents()
     $logo = Field 'familyLogo'
+    $headerLogo = Field 'headerLogo'
     $site = Field 'familyWebsite'
     $footer = Field 'pFooter'
     $next = Field 'btnNext'
@@ -25,13 +26,13 @@ try {
     $content = Field 'pContent'
     $form.ClientSize = New-Object System.Drawing.Size(740, 800)
     Call 'Render'
-    if (-not $logo.Visible) { throw 'Logo should remain visible at the standard size.' }
+    if (-not $logo.Visible -or $headerLogo.Visible) { throw 'Standard branding is incorrect.' }
     $fullTop = $site.Top
     foreach ($size in @((New-Object System.Drawing.Size(720, 500)), (New-Object System.Drawing.Size(500, 480)))) {
         $form.ClientSize = $size
         Set-Field 'step' 0
         Call 'Render'
-        if ($logo.Visible -or $site.Top -ge $fullTop -or -not $site.Visible) {
+        if ($logo.Visible -or -not $headerLogo.Visible -or $null -eq $headerLogo.Image -or $site.Top -ge $fullTop -or -not $site.Visible) {
             throw "Compact family view: logo=$($logo.Visible), site=$($site.Visible), top=$($site.Top), full=$fullTop, step=$(Field 'step')."
         }
         foreach ($familyName in @('LTSC', 'M365', 'Remove')) {
@@ -71,7 +72,7 @@ try {
     $form.ClientSize = New-Object System.Drawing.Size(740, 800)
     Set-Field 'step' 0
     Call 'Render'
-    if (-not $logo.Visible -or $site.Top -ne $fullTop) { throw 'The standard branding did not return.' }
+    if (-not $logo.Visible -or $headerLogo.Visible -or $site.Top -ne $fullTop) { throw 'The standard branding did not return.' }
     Write-Host 'PASS: Compact branding, family flows, footer navigation, scrolling and done state. No network or Office actions.'
 }
 finally { $form.Dispose() }
