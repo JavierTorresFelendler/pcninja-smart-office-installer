@@ -180,6 +180,12 @@ public class InstallerForm : Form
 
 	private Label lblFamilyNote;
 
+	private PictureBox familyLogo;
+
+	private LinkLabel familyWebsite;
+
+	private int familyWebsiteFullTop;
+
 	private Panel sumPanel;
 
 	private Panel pFamily;
@@ -281,6 +287,14 @@ public class InstallerForm : Form
 		pContent.SetBounds(0, contentTop, clientWidth, contentHeight);
 		pContent.AutoScrollMinSize = new Size(FW, 0);
 		pFooter.SetBounds(0, ClientSize.Height - FOOT_H, clientWidth, FOOT_H);
+		if (pFamily != null)
+		{
+			foreach (Control panel in pContent.Controls)
+				panel.Height = contentHeight;
+			bool compact = clientWidth < FW || contentHeight < familyWebsiteFullTop + familyWebsite.Height;
+			familyLogo.Visible = !compact;
+			familyWebsite.Top = compact ? lblFamilyNote.Bottom + 8 : familyWebsiteFullTop;
+		}
 
 		btnUpdate.Left = clientWidth - btnUpdate.Width - 20;
 		lblTitle.Width = Math.Max(0, btnUpdate.Left - lblTitle.Left - 12);
@@ -524,6 +538,7 @@ public class InstallerForm : Form
 			UpdateSummary();
 		}
 		RefreshNext();
+		OnResponsiveResize(this, EventArgs.Empty);
 	}
 
 	private void Nav(int dir)
@@ -764,6 +779,7 @@ public class InstallerForm : Form
 		{
 		}
 		panel.Controls.Add(pictureBox);
+		familyLogo = pictureBox;
 		LinkLabel linkLabel = new LinkLabel
 		{
 			Text = "www.PcNinja.Pro",
@@ -784,6 +800,8 @@ public class InstallerForm : Form
 			});
 		};
 		panel.Controls.Add(linkLabel);
+		familyWebsite = linkLabel;
+		familyWebsiteFullTop = linkLabel.Top;
 		UpdateFamilyCards();
 		return panel;
 	}
@@ -2015,6 +2033,7 @@ public class InstallerForm : Form
 		btnNext.FlatAppearance.BorderSize = 1;
 		btnNext.FlatAppearance.BorderColor = BORDER;
 		btnNext.FlatAppearance.MouseOverBackColor = CARD;
+		OnResponsiveResize(this, EventArgs.Empty);
 		if (lblHint != null)
 		{
 			lblHint.Text = "Done  —  press Back to run again, or Exit to close";
