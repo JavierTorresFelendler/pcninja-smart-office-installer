@@ -180,6 +180,12 @@ public class InstallerForm : Form
 
 	private Label lblFamilyNote;
 
+	private PictureBox familyLogo;
+
+	private LinkLabel familyWebsite;
+
+	private int familyWebsiteFullTop;
+
 	private Panel sumPanel;
 
 	private Panel pFamily;
@@ -279,8 +285,16 @@ public class InstallerForm : Form
 		pHeader.Width = clientWidth;
 		pStepBar.Width = clientWidth;
 		pContent.SetBounds(0, contentTop, clientWidth, contentHeight);
-		pContent.AutoScrollMinSize = new Size(FW, 0);
+		pContent.AutoScrollMinSize = step == 0 ? Size.Empty : new Size(FW, 0);
+		if (step == 0) pContent.AutoScrollPosition = Point.Empty;
+		pContent.AutoScroll = step != 0;
 		pFooter.SetBounds(0, ClientSize.Height - FOOT_H, clientWidth, FOOT_H);
+		if (pFamily != null)
+		{
+			foreach (Control panel in pContent.Controls)
+				panel.Height = contentHeight;
+			LayoutFamilyPanel(clientWidth, contentHeight);
+		}
 
 		btnUpdate.Left = clientWidth - btnUpdate.Width - 20;
 		lblTitle.Width = Math.Max(0, btnUpdate.Left - lblTitle.Left - 12);
@@ -290,6 +304,68 @@ public class InstallerForm : Form
 		btnNext.Left = btnBack.Right + 10;
 		lblHint.Width = Math.Max(0, btnBack.Left - lblHint.Left - 10);
 		pStepBar.Invalidate();
+	}
+
+	private void LayoutFamilyPanel(int width, int height)
+	{
+		// The family screen fits its viewport. Branding yields space before actions.
+		pFamily.AutoScroll = false;
+		pFamily.AutoScrollPosition = Point.Empty;
+		pFamily.Location = Point.Empty;
+		pFamily.Size = new Size(width, height);
+		bool compact = width < FW || height < familyWebsiteFullTop + familyWebsite.Height;
+		familyLogo.Visible = !compact;
+		int margin = compact ? 14 : PAD;
+		int innerWidth = Math.Max(1, width - margin * 2);
+		var heading = pFamily.Controls[0];
+		heading.SetBounds(margin, compact ? 12 : 24, innerWidth, heading.Height);
+		int cardTop = compact ? heading.Bottom + 8 : 54;
+		int gap = compact ? 12 : 16;
+		int cardWidth = Math.Max(1, (innerWidth - gap) / 2);
+		int cardHeight = compact ? 0 : 154;
+		foreach (Panel card in new[] { fCardLTSC, fCard365 })
+		{
+			card.Width = cardWidth;
+			for (int i = 0; i < card.Controls.Count; i++)
+			{
+				Control text = card.Controls[i];
+				text.Visible = !compact || i < 2;
+				if (i < 3) text.Width = Math.Max(1, cardWidth - 28);
+			}
+			if (compact)
+			{
+				card.Controls[0].Top = 10;
+				card.Controls[1].Top = card.Controls[0].Bottom + 4;
+				card.Controls[1].Height = WrappedTextHeight(card.Controls[1]);
+				cardHeight = Math.Max(cardHeight, card.Controls[1].Bottom + 10);
+			}
+			else
+			{
+				card.Controls[0].Top = 16;
+				card.Controls[1].SetBounds(14, 46, cardWidth - 28, 18);
+			}
+		}
+		fCardLTSC.SetBounds(margin, cardTop, cardWidth, cardHeight);
+		fCard365.SetBounds(margin + cardWidth + gap, cardTop, cardWidth, cardHeight);
+		fCardRemove.SetBounds(margin, fCardLTSC.Bottom + 14, innerWidth, 52);
+		Control removeTitle = fCardRemove.Controls[0];
+		Control removeDescription = fCardRemove.Controls[1];
+		Control removeTag = fCardRemove.Controls[2];
+		removeTag.Left = innerWidth - removeTag.Width - 14;
+		removeTag.Top = 8;
+		removeTitle.Width = Math.Max(1, removeTag.Left - removeTitle.Left - 8);
+		removeDescription.Width = Math.Max(1, innerWidth - 28);
+		removeDescription.Height = WrappedTextHeight(removeDescription);
+		fCardRemove.Height = Math.Max(52, removeDescription.Bottom + 6);
+		lblFamilyNote.SetBounds(margin, fCardRemove.Bottom + 12, innerWidth, 22);
+		lblFamilyNote.Height = WrappedTextHeight(lblFamilyNote);
+		familyWebsite.SetBounds(margin, compact ? lblFamilyNote.Bottom + 6 : familyWebsiteFullTop, innerWidth, 22);
+	}
+
+	private static int WrappedTextHeight(Control control)
+	{
+		return TextRenderer.MeasureText(control.Text, control.Font,
+			new Size(control.Width, int.MaxValue), TextFormatFlags.WordBreak).Height;
 	}
 
 	private void BuildHeader()
@@ -524,6 +600,7 @@ public class InstallerForm : Form
 			UpdateSummary();
 		}
 		RefreshNext();
+		OnResponsiveResize(this, EventArgs.Empty);
 	}
 
 	private void Nav(int dir)
@@ -764,6 +841,7 @@ public class InstallerForm : Form
 		{
 		}
 		panel.Controls.Add(pictureBox);
+		familyLogo = pictureBox;
 		LinkLabel linkLabel = new LinkLabel
 		{
 			Text = "www.PcNinja.Pro",
@@ -784,6 +862,8 @@ public class InstallerForm : Form
 			});
 		};
 		panel.Controls.Add(linkLabel);
+		familyWebsite = linkLabel;
+		familyWebsiteFullTop = linkLabel.Top;
 		UpdateFamilyCards();
 		return panel;
 	}
@@ -2015,6 +2095,7 @@ public class InstallerForm : Form
 		btnNext.FlatAppearance.BorderSize = 1;
 		btnNext.FlatAppearance.BorderColor = BORDER;
 		btnNext.FlatAppearance.MouseOverBackColor = CARD;
+		OnResponsiveResize(this, EventArgs.Empty);
 		if (lblHint != null)
 		{
 			lblHint.Text = "Done  —  press Back to run again, or Exit to close";

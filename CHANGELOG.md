@@ -1,5 +1,11 @@
 # Changelog
 
+## v3.3.11
+
+- Fit the family screen without scrolling; compact displays retain the website link instead of the large logo and repeated descriptive details.
+- Keep navigation buttons accessible after changing steps and completing an operation.
+- Windows file version: `3.3.11.0`. Owner VM acceptance completed before publication.
+
 ## v3.3.10
 
 - Fixed installer layout on small displays so the window fits the available screen area and key controls remain accessible.
