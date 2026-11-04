@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased — single-instance GUI (issue #6)
+
+- Opening the installer while it is already running no longer starts a second copy;
+  the running window is restored and brought to the front, without a UAC prompt.
+- Uses the shared `shared/PcNinjaSingleInstance.cs` guard (same file in all PcNinja tools).
+
 ## v3.3.12
 
 - Add consent-based in-app download, verification and same-name restart with OLD predecessor archival.

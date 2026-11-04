@@ -3,11 +3,15 @@ using System.Diagnostics;
 using System.Security.Principal;
 using System.Windows.Forms;
 using OfficeSmart.Updates;
+using PcNinja.Shared;
 
 namespace OfficeSmart;
 
 internal static class Program
 {
+	/// <summary>Fixed shared single-instance id. Never version it.</summary>
+	internal const string SingleInstanceAppId = "SmartOfficeInstaller";
+
 	[STAThread]
 	private static int Main(string[] args)
 	{
@@ -15,6 +19,9 @@ internal static class Program
 			return args.Length == 1 && args[0] == PortableUpdate.HelperArgument ? PortableUpdate.RunHelper() : 2;
 		string readyPipe = Environment.GetEnvironmentVariable(UpdateReadiness.EnvironmentName);
 		Environment.SetEnvironmentVariable(UpdateReadiness.EnvironmentName, null);
+		// GUI is single-instance per Windows session. A second launch focuses the
+		// running window instead (before UAC, so no needless elevation prompt).
+		if (!IsAdmin() && PcNinjaSingleInstance.TryActivateExisting(SingleInstanceAppId)) return 0;
 		if (!IsAdmin())
 		{
 			try
@@ -33,6 +40,8 @@ internal static class Program
 			}
 		}
 		if (PortableUpdate.IsRecoveryCopy) return PortableUpdate.RecoverFromHelper() ? 0 : 1;
+		using var singleInstance = PcNinjaSingleInstance.Acquire(SingleInstanceAppId);
+		if (singleInstance == null) return 0;
 		Application.EnableVisualStyles();
 		Application.SetCompatibleTextRenderingDefault(defaultValue: false);
 		using var form = new InstallerForm();
