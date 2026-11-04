@@ -1,4 +1,5 @@
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'UpdateFixtureResult.ps1')
 $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
 if (-not ([Security.Principal.WindowsPrincipal]$identity).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
     Write-Host 'SKIP: Elevated fixture required for production staging ACL and parent/helper handoff.'
@@ -24,13 +25,28 @@ if (-not $process.WaitForExit(40000)) { throw "Fixture parent did not finish. In
 if ($process.ExitCode -ne 0) { throw "Fixture parent failed. Inspect $fixture" }
 $deadline = [DateTime]::UtcNow.AddSeconds(45)
 $result = $null
+$complete = $false
+$status = ''
+$state = Join-Path $fixture '.pcninja-office-updates'
 do {
-    $result = @(Get-ChildItem -LiteralPath (Join-Path $fixture '.pcninja-office-updates') -Filter result.txt -Recurse -ErrorAction SilentlyContinue)
-    if ($result.Count -gt 0) { break }
+    $result = @(Get-ChildItem -LiteralPath $state -Filter result.txt -Recurse -ErrorAction SilentlyContinue)
+    if ($result.Count -gt 0) {
+        try {
+            $status = [IO.File]::ReadAllText($result[0].FullName)
+            $currentHash = (Get-FileHash -LiteralPath $old).Hash
+            $previousHash = (Get-FileHash -LiteralPath (Join-Path $fixture 'OLD-Smart Office Installer.exe')).Hash
+            $complete = Test-CompletedAppUpdate $status $currentHash $newHash $previousHash $oldHash (Test-Path -LiteralPath (Join-Path $state 'active-operation'))
+        } catch [IO.IOException] {
+            # The helper may still be writing its result or publishing the archive.
+        } catch [System.Management.Automation.ItemNotFoundException] {
+            # Archive publication has not finished yet.
+        }
+    }
+    if ($complete) { break }
     Start-Sleep -Milliseconds 200
 } while ([DateTime]::UtcNow -lt $deadline)
-if (-not $result -or (Get-Content -LiteralPath $result[0].FullName -Raw) -notlike 'Updated to 3.3.13.0*') {
-    if ($result) { Get-Content -LiteralPath $result[0].FullName | Write-Host }
+if (-not $complete) {
+    Write-Host $status
     throw "Helper did not report confirmed success. Inspect $fixture"
 }
 if ((Get-FileHash -LiteralPath $old).Hash -ne $newHash -or
