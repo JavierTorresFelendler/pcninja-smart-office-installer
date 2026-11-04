@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased POC: v3.3.12
+
+- Add consent-based in-app download, verification and same-name restart with OLD predecessor archival.
+- Add cancellation, busy-state guards, bounded helper handoff, GUI readiness and recovery diagnostics.
+- Candidate file version: `3.3.12.0`. Draft testing only; stable update discovery remains at v3.3.11.
+
 ## v3.3.11
 
 - Fit the family screen without scrolling; compact displays retain the website link instead of the large logo and repeated descriptive details.

@@ -13,10 +13,11 @@ using System.Security;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using OfficeSmart.Updates;
 
 namespace OfficeSmart;
 
-public class InstallerForm : Form
+public partial class InstallerForm : Form
 {
 	private static readonly Color BG = Color.FromArgb(14, 11, 26);
 
@@ -237,6 +238,10 @@ public class InstallerForm : Form
 			FitToWorkingArea();
 		};
 		BuildWorker();
+		FormClosing += (_, e) =>
+		{
+			if (!closingForAppUpdate && (appUpdateInProgress || worker.IsBusy)) e.Cancel = true;
+		};
 		Shown += delegate
 		{
 			BeginUpdateCheck(manual: false);
@@ -1744,6 +1749,7 @@ public class InstallerForm : Form
 
 	private void StartInstall()
 	{
+		if (appUpdateInProgress) return;
 		if (!worker.IsBusy)
 		{
 			btnNext.Enabled = false;
@@ -2383,9 +2389,10 @@ public class InstallerForm : Form
 
 	private void OnUpdateButtonClick()
 	{
+		if (appUpdateInProgress || worker.IsBusy) return;
 		if (availableUpdateManifest != null)
 		{
-			OpenExternalUrl(GetUpdateUrl(availableUpdateManifest));
+			InstallAppUpdate(availableUpdateManifest, availableUpdateVersion);
 			return;
 		}
 		BeginUpdateCheck(manual: true);
@@ -2393,7 +2400,7 @@ public class InstallerForm : Form
 
 	private void BeginUpdateCheck(bool manual)
 	{
-		if (updateCheckInProgress)
+		if (updateCheckInProgress || appUpdateInProgress || worker.IsBusy)
 		{
 			return;
 		}
@@ -2410,13 +2417,7 @@ public class InstallerForm : Form
 		try
 		{
 			ServicePointManager.SecurityProtocol |= SecurityProtocolType.Tls12;
-			string responseJson;
-			using (WebClient webClient = new WebClient())
-			{
-				webClient.Headers[HttpRequestHeader.UserAgent] = "PcNinja-SmartOfficeInstaller";
-				webClient.Headers[HttpRequestHeader.Accept] = "application/vnd.github+json";
-				responseJson = await webClient.DownloadStringTaskAsync(UPDATE_MANIFEST_URL);
-			}
+			string responseJson = await PortableUpdate.ReadMetadataAsync(UPDATE_MANIFEST_URL);
 
 			string manifestJson = DecodeGitHubContentPayload(responseJson);
 			UpdateManifest manifest = ReadJson<UpdateManifest>(manifestJson);
@@ -2457,7 +2458,7 @@ public class InstallerForm : Form
 			availableUpdateManifest = manifest;
 			availableUpdateVersion = latestVersion;
 			SetUpdateButtonAvailable(manifest, latestVersion);
-			ShowUpdatePrompt(manifest, currentVersion, latestVersion);
+			if (!worker.IsBusy && !appUpdateInProgress) ShowUpdatePrompt(manifest, currentVersion, latestVersion);
 			return;
 		}
 
@@ -2531,18 +2532,7 @@ public class InstallerForm : Form
 		}
 		updatePromptShown = true;
 
-		string latestLabel = string.IsNullOrWhiteSpace(manifest.PublicLabel) ? "v" + latestVersion : manifest.PublicLabel;
-		string currentLabel = currentVersion.ToString();
-		string message = "A new version of Smart Office Installer is available." +
-			"\r\n\r\nCurrent version: " + currentLabel +
-			"\r\nLatest version: " + latestLabel +
-			"\r\n\r\nOpen the GitHub download now?";
-
-		DialogResult result = MessageBox.Show(this, message, "Update available", MessageBoxButtons.YesNo, MessageBoxIcon.Information);
-		if (result == DialogResult.Yes)
-		{
-			OpenExternalUrl(GetUpdateUrl(manifest));
-		}
+		InstallAppUpdate(manifest, latestVersion);
 	}
 
 	private static string DecodeGitHubContentPayload(string json)
@@ -2600,6 +2590,11 @@ public class InstallerForm : Form
 		{
 			return false;
 		}
+		if (manifest.Channel != "stable" || manifest.Portable.FileName != PortableUpdate.CanonicalName ||
+			!Version.TryParse(manifest.Version, out var pinnedVersion) || pinnedVersion.Revision != 0 ||
+			manifest.Portable.Url != "https://github.com/JavierTorresFelendler/pcninja-smart-office-installer/releases/latest/download/SmartOfficeInstaller.exe" ||
+			manifest.ReleaseNotesUrl != "https://github.com/JavierTorresFelendler/pcninja-smart-office-installer/releases/tag/v" + pinnedVersion.ToString(3))
+			return false;
 		if (string.IsNullOrWhiteSpace(manifest.Version) || string.IsNullOrWhiteSpace(manifest.Portable.FileName))
 		{
 			return false;

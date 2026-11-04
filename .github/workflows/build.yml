@@ -30,8 +30,25 @@ jobs:
         shell: pwsh
         run: dotnet build .\PcNinja.SmartOfficeInstaller.csproj -c Release
 
+      - name: Validate public content and updater fixtures
+        shell: pwsh
+        run: |
+          ./scripts/Test-OfficeSmartPublicReady.ps1
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          dotnet build tests/UpdaterChecks/UpdaterChecks.csproj -c Release -warnaserror
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & ./tests/UpdaterChecks/bin/Release/net48/UpdaterChecks.exe
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          powershell -NoProfile -STA -ExecutionPolicy Bypass -File scripts/Test-AppUpdateGui.ps1
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          powershell -NoProfile -STA -ExecutionPolicy Bypass -File scripts/Test-CompactLayout.ps1
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          ./scripts/Test-UpdateLifecycle.ps1
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: OfficeSmart-build
-          path: bin\Release\net48\OfficeSmart-v*.exe
+          path: bin\Release\net48\Smart Office Installer.exe
+          if-no-files-found: error

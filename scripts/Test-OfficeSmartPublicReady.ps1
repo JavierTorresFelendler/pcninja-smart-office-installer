@@ -23,15 +23,18 @@ if (-not (Test-Path -LiteralPath $assemblyInfo)) {
 }
 
 dotnet build $project -c $Configuration
+if ($LASTEXITCODE -ne 0) { Fail "Build failed." }
 
 $offlineLayoutCheck = Join-Path $repoRoot "scripts\Test-OfflinePackageLayout.ps1"
 if (Test-Path -LiteralPath $offlineLayoutCheck) {
     & powershell -NoProfile -ExecutionPolicy Bypass -File $offlineLayoutCheck
+    if ($LASTEXITCODE -ne 0) { Fail "Offline package check failed." }
 }
 
 $updateManifestCheck = Join-Path $repoRoot "scripts\Test-UpdateManifest.ps1"
 if (Test-Path -LiteralPath $updateManifestCheck) {
     & powershell -NoProfile -ExecutionPolicy Bypass -File $updateManifestCheck
+    if ($LASTEXITCODE -ne 0) { Fail "Update manifest check failed." }
 }
 
 $projectText = Get-Content -LiteralPath $project -Raw
@@ -113,7 +116,14 @@ foreach ($file in $files) {
 
     $text = Get-Content -LiteralPath $file.FullName -Raw -ErrorAction SilentlyContinue
     foreach ($pattern in $scanPatterns) {
-        if ($text -match [regex]::Escape($pattern)) {
+        $scanText = $text
+        # These exact framework type names do not represent credentials.
+        # Other occurrences, including credential variable names, still fail.
+        if ($file.Extension -eq '.cs' -and $pattern -eq (Join-Parts @('to', 'ken'))) {
+            $scanText = [regex]::Replace($scanText, '\b(CancellationToken(Source)?|CreateLinkedTokenSource)\b', '')
+            $scanText = [regex]::Replace($scanText, '\b(cancellation|cancel|timeout)\.Token\b', '')
+        }
+        if ($scanText -match [regex]::Escape($pattern)) {
             $findings.Add([pscustomobject]@{ Path = $file.FullName.Substring($repoRoot.Length + 1); Pattern = $pattern }) | Out-Null
         }
     }

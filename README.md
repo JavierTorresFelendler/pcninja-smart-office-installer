@@ -16,6 +16,9 @@ The executable is named `Smart Office Installer.exe`; its version is shown in Wi
 - Can prepare an offline LTSC install package.
 - Checks GitHub for new public releases, shows an update prompt, and keeps a header update button available afterward.
 
+The development branch includes an unpublished in-app updater POC. See
+[portable app updates](docs/PORTABLE-APP-UPDATES.md) for behavior, checks and release holds.
+
 This project does not include Microsoft Office, private licensing material, activation bypasses, or cracked software. Users must have valid Microsoft licensing for the products they deploy.
 
 ## Requirements

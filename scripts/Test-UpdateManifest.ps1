@@ -83,10 +83,11 @@ if ($null -eq $manifest.signing.required) {
 }
 
 $source = Get-Content -LiteralPath $sourcePath -Raw
+$source += Get-Content -LiteralPath (Join-Path $repoRoot 'OfficeSmart\InstallerForm.AppUpdates.cs') -Raw
 $requiredSourceSnippets = @(
     "UPDATE_MANIFEST_URL",
     "public-release/update-manifest.json?ref=main",
-    "DownloadStringTaskAsync",
+    "ReadMetadataAsync",
     "DataContractJsonSerializer",
     "FileVersionInfo.GetVersionInfo",
     "Update available",
