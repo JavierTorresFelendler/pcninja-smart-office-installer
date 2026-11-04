@@ -23,4 +23,6 @@
     <EmbeddedResource Include="OfficeSmart.Ninja-DMT.png" LogicalName="OfficeSmart.Ninja-DMT.png" />
   </ItemGroup>
   <ItemGroup />
+  <ItemGroup><Reference Include="System.Net.Http" /></ItemGroup>
+  <ItemGroup><Compile Remove="tests\**\*.cs" /></ItemGroup>
 </Project>

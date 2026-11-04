@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk.WindowsDesktop">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType><TargetFramework>net48</TargetFramework><UseWindowsForms>true</UseWindowsForms>
+    <PlatformTarget>x64</PlatformTarget><LangVersion>10.0</LangVersion>
+    <AssemblyName>LifecycleFixture</AssemblyName><Company>PcNinja.Pro</Company><Product>Smart Office Installer</Product>
+  </PropertyGroup>
+  <ItemGroup><Compile Include="..\..\OfficeSmart\Updates\*.cs" Link="Updates\%(Filename)%(Extension)" /><Reference Include="System.Net.Http" /></ItemGroup>
+</Project>

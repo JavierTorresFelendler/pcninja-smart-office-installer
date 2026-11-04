@@ -1,5 +1,13 @@
 # Changelog
 
+## v3.3.12
+
+- Add consent-based in-app download, verification and same-name restart with OLD predecessor archival.
+- Add cancellation, busy-state guards, bounded helper handoff, GUI readiness and recovery diagnostics.
+- Replace the same-name EXE with a verified backup and complete interrupted updates on the next normal startup.
+- Windows file version: `3.3.12.0`. Owner VM acceptance completed for same-name replacement, exact OLD archive and all four interrupted-update recovery cases.
+- Earlier releases retain their browser download flow for the one-time upgrade to this version.
+
 ## v3.3.11
 
 - Fit the family screen without scrolling; compact displays retain the website link instead of the large logo and repeated descriptive details.
