@@ -30,6 +30,7 @@ do {
     Start-Sleep -Milliseconds 200
 } while ([DateTime]::UtcNow -lt $deadline)
 if (-not $result -or (Get-Content -LiteralPath $result[0].FullName -Raw) -notlike 'Updated to 3.3.13.0*') {
+    if ($result) { Get-Content -LiteralPath $result[0].FullName | Write-Host }
     throw "Helper did not report confirmed success. Inspect $fixture"
 }
 if ((Get-FileHash -LiteralPath $old).Hash -ne $newHash -or

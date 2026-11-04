@@ -34,14 +34,18 @@ internal static class UpdateReadiness
         try
         {
             var connected = server.WaitForConnectionAsync();
-            if (!connected.Wait(30000) || !GetNamedPipeClientProcessId(server.SafePipeHandle, out uint pid) || pid != launched.Id) return false;
+            if (!connected.Wait(30000)) throw new IOException("No GUI readiness connection; " +
+                (launched.HasExited ? "child exit code " + launched.ExitCode : "child is still running"));
+            if (!GetNamedPipeClientProcessId(server.SafePipeHandle, out uint pid) || pid != launched.Id)
+                throw new IOException("The GUI readiness client did not match the launched process.");
             using var reader = new StreamReader(server, Encoding.UTF8, false, 128, true);
             if (PortableUpdate.ReadLine(reader, 128, 5000) != Ready) return false;
             using var writer = new StreamWriter(server, new UTF8Encoding(false), 128, true) { AutoFlush = true };
             writer.WriteLine("ACK");
             return !launched.HasExited;
         }
-        catch (Exception ex) when (ex is IOException || ex is TimeoutException || ex is AggregateException) { return false; }
+        catch (Exception ex) when (ex is IOException || ex is TimeoutException || ex is AggregateException)
+        { throw new IOException("Application GUI readiness failed: " + ex.Message, ex); }
     }
 
     internal static async Task SignalAsync(string name)
