@@ -21,10 +21,13 @@ internal sealed class UpdateFiles : IDisposable
     internal string Candidate => Path.Combine(Operation, "candidate.exe");
     internal string Helper => Path.Combine(Operation, "helper.exe");
     internal string Backup => Path.Combine(Operation, "previous.exe");
+    internal string Displaced => Path.Combine(Operation, "displaced.exe");
+    internal string Journal => Path.Combine(Operation, "transaction.json");
+    internal string Active => Path.Combine(Folder, StateFolder, "active-operation");
     private const string PrivateAcl = "O:BAG:BAD:P(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)";
     private readonly SecurityIdentifier fixtureUser;
 
-    internal UpdateFiles(string folder, string id, bool create, bool fixture = false)
+    internal UpdateFiles(string folder, string id, bool create, bool fixture = false, bool stateOnly = false)
     {
         if (!Guid.TryParseExact(id, "N", out _)) throw new IOException("Invalid update operation.");
         Folder = LocalPath(folder);
@@ -51,8 +54,8 @@ internal sealed class UpdateFiles : IDisposable
             }
             string state = Path.Combine(Folder, StateFolder);
             OpenPrivateDirectory(state, create, false);
-            Operation = Path.Combine(state, id);
-            OpenPrivateDirectory(Operation, create, create);
+            Operation = stateOnly ? state : Path.Combine(state, id);
+            if (!stateOnly) OpenPrivateDirectory(Operation, create, create);
         }
         catch { Dispose(); throw; }
     }
@@ -109,6 +112,44 @@ internal sealed class UpdateFiles : IDisposable
         sid.IsWellKnown(WellKnownSidType.LocalSystemSid);
     private bool AllowedSid(SecurityIdentifier sid) => TrustedSid(sid) || (fixtureUser != null && sid == fixtureUser);
 
+    internal FileStream CreatePrivate(string path)
+    {
+        string sddl = fixtureUser == null ? PrivateAcl : "O:" + fixtureUser.Value + "G:" + fixtureUser.Value + "D:P(A;OICI;FA;;;" + fixtureUser.Value + ")";
+        if (!ConvertStringSecurityDescriptorToSecurityDescriptorW(sddl, 1, out var descriptor, out _)) throw Error("Cannot prepare file permissions.");
+        try
+        {
+            var security = new SecurityAttributes { Length = Marshal.SizeOf(typeof(SecurityAttributes)), Descriptor = descriptor };
+            var handle = CreateFileSecure(path, 0x40000000, 0, ref security, 1, 0x00200000, IntPtr.Zero);
+            if (handle.IsInvalid) { handle.Dispose(); throw Error("Cannot create a private update record without overwriting a file."); }
+            return new FileStream(handle, FileAccess.Write);
+        }
+        finally { LocalFree(descriptor); }
+    }
+    internal void WriteJournal(UpdateRequest request)
+    {
+        using var output = CreatePrivate(Journal);
+        byte[] bytes = Encoding.UTF8.GetBytes(PortableUpdate.Serialize(request));
+        output.Write(bytes, 0, bytes.Length);
+        output.Flush(true);
+    }
+    internal void MarkActive(string id)
+    {
+        string pending = Path.Combine(Operation, "active.new");
+        using (var output = CreatePrivate(pending))
+        {
+            byte[] bytes = Encoding.ASCII.GetBytes(id);
+            output.Write(bytes, 0, bytes.Length); output.Flush(true);
+        }
+        File.Move(pending, Active); // Atomic pointer publication; never an incomplete marker.
+    }
+    internal void ClearActive(string id)
+    {
+        if (!File.Exists(Active)) return;
+        using (var marker = new LockedFile(Active, false))
+            if (marker.ReadText(32) != id) throw new IOException("Another update owns the recovery marker.");
+        File.Delete(Active); // Protected state directory; only this exact operation is cleared.
+    }
+
     internal static void MakePublicExecutable(string path)
     {
         var security = new FileSecurity();
@@ -152,6 +193,19 @@ internal sealed class UpdateFiles : IDisposable
             return BitConverter.ToString(sha.ComputeHash(stream)).Replace("-", "");
         }
         internal long Length => stream.Length;
+        internal string ReadText(int maximum)
+        {
+            if (stream.Length > maximum) throw new IOException("Update record exceeds its bound.");
+            stream.Position = 0;
+            using var reader = new StreamReader(stream, Encoding.UTF8, true, 128, true);
+            return reader.ReadToEnd();
+        }
+        internal void CopyToPrivate(UpdateFiles files, string destination)
+        {
+            stream.Position = 0;
+            using var output = files.CreatePrivate(destination);
+            stream.CopyTo(output); output.Flush(true);
+        }
         internal void RequireHash(string expected)
         {
             if (!string.Equals(Hash(), expected, StringComparison.OrdinalIgnoreCase)) throw new IOException("The executable changed or failed its checksum.");
@@ -200,6 +254,7 @@ internal sealed class UpdateFiles : IDisposable
         public uint Volume, SizeHigh, SizeLow, Links, IndexHigh, IndexLow;
     }
     [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)] private static extern SafeFileHandle CreateFileW(string path, uint access, uint share, IntPtr security, uint disposition, uint flags, IntPtr template);
+    [DllImport("kernel32.dll", EntryPoint = "CreateFileW", CharSet = CharSet.Unicode, ExactSpelling = true, SetLastError = true)] private static extern SafeFileHandle CreateFileSecure(string path, uint access, uint share, ref SecurityAttributes security, uint disposition, uint flags, IntPtr template);
     [DllImport("kernel32.dll", SetLastError = true)] private static extern bool GetFileInformationByHandle(SafeFileHandle file, out FileInformation information);
     [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)] private static extern uint GetFinalPathNameByHandleW(SafeFileHandle file, StringBuilder path, uint length, uint flags);
     [DllImport("kernel32.dll", SetLastError = true)] private static extern bool SetFileInformationByHandle(SafeFileHandle file, int informationClass, IntPtr information, uint length);

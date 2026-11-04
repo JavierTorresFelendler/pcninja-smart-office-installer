@@ -35,6 +35,8 @@ internal sealed class UpdateRequest
     [DataMember] public string ParentPath;
     [DataMember] public string ParentHash;
     [DataMember] public UpdateOffer Offer;
+    [DataMember] public int HelperId;
+    [DataMember] public long HelperStartTicks;
 }
 
 internal static class PortableUpdate
@@ -160,6 +162,7 @@ internal static class PortableUpdate
         ValidateOffer(offer, current);
         string id = Guid.NewGuid().ToString("N");
         using var files = new UpdateFiles(Path.GetDirectoryName(parentPath), id, true);
+        if (File.Exists(files.Active)) throw new IOException("A previous app update is pending. Reopen the app to complete recovery first.");
         using var original = new UpdateFiles.LockedFile(parentPath, false);
         string originalHash = original.Hash();
         VerifyExecutable(original, current.ToString(), originalHash);
@@ -169,6 +172,7 @@ internal static class PortableUpdate
         var drive = new DriveInfo(Path.GetPathRoot(files.Folder));
         if (drive.AvailableFreeSpace < MaximumBytes * 3) throw new IOException("Not enough free space for safe application update staging.");
         await DownloadAsync(offer, files.Candidate, progress, cancellation);
+        UpdateFiles.MakePrivate(files.Candidate);
         using (var candidate = new UpdateFiles.LockedFile(files.Candidate, false)) VerifyExecutable(candidate, offer.Version, offer.Sha256);
         File.Copy(parentPath, files.Helper, false);
         UpdateFiles.MakePrivate(files.Helper);
@@ -197,6 +201,7 @@ internal static class PortableUpdate
             string ready = await Task.Run(() => ReadLine(helper.StandardOutput, 128, 20000), cancellation);
             if (ready != Ready) throw new IOException("The update helper was not ready. The current app remains open.");
             cancellation.ThrowIfCancellationRequested();
+            files.MarkActive(request.OperationId);
             helper.StandardInput.WriteLine(Go);
             helper.StandardInput.Flush();
         }
@@ -224,12 +229,15 @@ internal static class PortableUpdate
                 !string.Equals(parent.MainModule.FileName, request.ParentPath, StringComparison.OrdinalIgnoreCase))
                 throw new IOException("The original process identity changed.");
             using (var helper = new UpdateFiles.LockedFile(ExecutablePath, false)) helper.RequireHash(request.ParentHash);
-            using var original = new UpdateFiles.LockedFile(request.ParentPath, true);
+            using var original = new UpdateFiles.LockedFile(request.ParentPath, false);
             original.RequireHash(request.ParentHash);
             using (var verify = new UpdateFiles.LockedFile(files.Candidate, false))
                 VerifyExecutable(verify, request.Offer.Version, request.Offer.Sha256);
             using var candidate = new UpdateFiles.LockedFile(files.Candidate, true);
             candidate.RequireHash(request.Offer.Sha256);
+            using (var self = Process.GetCurrentProcess())
+            { request.HelperId = self.Id; request.HelperStartTicks = self.StartTime.ToUniversalTime().Ticks; }
+            files.WriteJournal(request);
             Console.WriteLine(Ready);
             Console.Out.Flush();
             if (ReadLine(Console.In, 128, 20000) != Go) throw new IOException("Update handoff was not committed.");
@@ -256,29 +264,37 @@ internal static class PortableUpdate
         string target = Path.Combine(files.Folder, CanonicalName);
         original.RequireHash(request.ParentHash);
         candidate.RequireHash(request.Offer.Sha256);
-        using (var journal = new FileStream(Path.Combine(files.Operation, "transaction.json"), FileMode.CreateNew, FileAccess.Write, FileShare.None))
-        {
-            byte[] record = Encoding.UTF8.GetBytes(Serialize(request));
-            journal.Write(record, 0, record.Length);
-            journal.Flush(true); // Preserve exact paths and hashes before either rename.
-        }
-        original.Move(files.Backup);
+        if (!File.Exists(files.Journal)) files.WriteJournal(request);
+        original.CopyToPrivate(files, files.Backup);
+        using (var backup = new UpdateFiles.LockedFile(files.Backup, false)) backup.RequireHash(request.ParentHash);
+        bool sameName = string.Equals(target, request.ParentPath, StringComparison.OrdinalIgnoreCase);
+        original.Dispose();
         Process launched = null;
         UpdateFiles.LockedFile launchGuard = null;
         bool published = false, acknowledged = false;
         try
         {
-            // Both renames use pinned handles, never overwrite a raced/existing file.
-            candidate.Move(target);
+            // Same-name publication is one atomic NTFS replacement. Keep a secure
+            // independently verified predecessor snapshot, plus every displaced
+            // target (even an unexpected raced file); no bytes are discarded.
+            candidate.Dispose();
+            if (sameName) File.Replace(files.Candidate, target, files.Displaced);
+            else File.Move(files.Candidate, target); // An occupied different-name target is never overwritten.
             published = true;
-            files.PublishPermissions(target);
             // CLR startup may refuse a freshly renamed image while a DELETE
             // access handle is held. Reopen with read-only/no-delete sharing and
             // reverify exact bytes before CreateProcess. Any raced substitution
             // is rejected; no unverified path is ever launched.
-            candidate.Dispose();
             launchGuard = new UpdateFiles.LockedFile(target, false);
             launchGuard.RequireHash(request.Offer.Sha256);
+            files.PublishPermissions(target); // Permission changes are also bound to the verified, pinned file.
+            if (sameName)
+            {
+                if (!File.Exists(files.Displaced)) throw new IOException("Atomic replacement did not preserve its displaced target.");
+                using var displaced = new UpdateFiles.LockedFile(files.Displaced, false);
+                displaced.RequireHash(request.ParentHash);
+                if (IsAdmin) UpdateFiles.MakePrivate(files.Displaced);
+            }
             acknowledged = launch(target, out launched);
             if (!acknowledged) throw new IOException("The new window did not confirm startup.");
         }
@@ -289,14 +305,34 @@ internal static class PortableUpdate
             // Restore only when it is certainly gone, and only our exact bytes.
             if (launched == null || launched.HasExited)
             {
+                if (!published && sameName && !File.Exists(target))
+                {
+                    // ReplaceFile documents a partial-failure status where the
+                    // displaced name exists but the canonical name is absent.
+                    using var rescue = new UpdateFiles.LockedFile(files.Backup, true);
+                    rescue.RequireHash(request.ParentHash);
+                    rescue.Move(target);
+                    files.PublishPermissions(target);
+                }
                 if (published)
                 {
-                    candidate.Dispose();
-                    using var failed = new UpdateFiles.LockedFile(target, true);
-                    failed.RequireHash(request.Offer.Sha256);
-                    failed.Move(Path.Combine(files.Operation, "failed.exe"));
+                    using (var verify = new UpdateFiles.LockedFile(target, false)) verify.RequireHash(request.Offer.Sha256);
+                    if (sameName)
+                    {
+                        using (var backup = new UpdateFiles.LockedFile(files.Backup, false)) backup.RequireHash(request.ParentHash);
+                        File.Replace(files.Backup, target, Path.Combine(files.Operation, "failed.exe"));
+                        using var restored = new UpdateFiles.LockedFile(target, false);
+                        restored.RequireHash(request.ParentHash);
+                        files.PublishPermissions(target);
+                    }
+                    else
+                    {
+                        using var failed = new UpdateFiles.LockedFile(target, true);
+                        failed.RequireHash(request.Offer.Sha256);
+                        failed.Move(Path.Combine(files.Operation, "failed.exe"));
+                    }
                 }
-                original.Move(request.ParentPath);
+                files.ClearActive(request.OperationId);
             }
             throw;
         }
@@ -305,11 +341,159 @@ internal static class PortableUpdate
         {
             try
             {
-                string archived = original.Archive(files.Folder, Path.GetFileName(request.ParentPath));
+                string archived = ArchivePrevious(files, request);
                 File.WriteAllText(Path.Combine(files.Operation, "result.txt"), "Updated to " + request.Offer.Version + "; previous copy: " + archived);
+                files.ClearActive(request.OperationId);
             }
-            catch (Exception ex) { try { File.WriteAllText(Path.Combine(files.Operation, "result.txt"), "Updated; previous copy retained at " + original.PathName + ". " + ex.Message); } catch { } }
+            catch (Exception ex) { try { File.WriteAllText(Path.Combine(files.Operation, "result.txt"), "Updated; previous copy retained at " + files.Backup + ". " + ex.Message); } catch { } }
         }
+    }
+
+    private static string ArchivePrevious(UpdateFiles files, UpdateRequest request)
+    {
+        bool separateSource = !string.Equals(request.ParentPath, Path.Combine(files.Folder, CanonicalName), StringComparison.OrdinalIgnoreCase);
+        if (!File.Exists(files.Backup) || (separateSource && !File.Exists(request.ParentPath)))
+        {
+            // Recover a crash after OLD rename but before completion recording.
+            // These are exact deterministic predecessor names, not a file scan.
+            for (int slot = 0; slot < 1000; slot++)
+            {
+                string prefix = slot == 0 ? "OLD-" : "OLD.V" + slot + "-";
+                string path = Path.Combine(files.Folder, prefix + Path.GetFileName(request.ParentPath));
+                if (!File.Exists(path)) continue;
+                try
+                {
+                    using var existingArchive = new UpdateFiles.LockedFile(path, false);
+                    existingArchive.RequireHash(request.ParentHash);
+                    files.PublishPermissions(path);
+                    return path;
+                }
+                catch (IOException) { }
+                catch (System.ComponentModel.Win32Exception) { }
+            }
+            if (!File.Exists(files.Backup)) throw new IOException("The recorded predecessor backup/archive is unavailable; recovery kept all files.");
+        }
+        if (!string.Equals(request.ParentPath, Path.Combine(files.Folder, CanonicalName), StringComparison.OrdinalIgnoreCase) && File.Exists(request.ParentPath))
+        {
+            using var source = new UpdateFiles.LockedFile(request.ParentPath, true);
+            source.RequireHash(request.ParentHash);
+            string archivedSource = source.Archive(files.Folder, Path.GetFileName(request.ParentPath));
+            files.PublishPermissions(archivedSource);
+            return archivedSource;
+        }
+        using var previous = new UpdateFiles.LockedFile(files.Backup, true);
+        previous.RequireHash(request.ParentHash);
+        string archived = previous.Archive(files.Folder, Path.GetFileName(request.ParentPath));
+        files.PublishPermissions(archived);
+        return archived;
+    }
+
+    internal static void RecoverAfterStartup()
+    {
+        if (!IsAdmin) return;
+        string folder = Path.GetDirectoryName(ExecutablePath);
+        if (!File.Exists(Path.Combine(folder, UpdateFiles.StateFolder, "active-operation"))) return;
+        try
+        {
+            using var state = new UpdateFiles(folder, Guid.Empty.ToString("N"), false, stateOnly: true);
+            string id;
+            using (var marker = new UpdateFiles.LockedFile(state.Active, false)) id = marker.ReadText(32);
+            using var files = new UpdateFiles(folder, id, false);
+            UpdateRequest request;
+            using (var record = new UpdateFiles.LockedFile(files.Journal, false)) request = Deserialize<UpdateRequest>(record.ReadText(32768));
+            if (request == null || request.OperationId != id || request.Protocol != 1 ||
+                !string.Equals(Path.GetDirectoryName(UpdateFiles.LocalPath(request.ParentPath)), files.Folder, StringComparison.OrdinalIgnoreCase) ||
+                !request.ParentPath.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)) throw new IOException("Invalid recovery record.");
+            if (HelperAlive(files, request)) return;
+            RecoverConfirmed(files, request, ExecutablePath);
+        }
+        catch (Exception ex)
+        {
+            System.Windows.Forms.MessageBox.Show("A previous app update needs attention. All recovery copies have been kept.\r\n\r\n" + ex.Message,
+                "App update recovery", System.Windows.Forms.MessageBoxButtons.OK, System.Windows.Forms.MessageBoxIcon.Warning);
+        }
+    }
+
+    internal static bool IsRecoveryCopy => string.Equals(Path.GetFileName(ExecutablePath), "helper.exe", StringComparison.OrdinalIgnoreCase) &&
+        string.Equals(Path.GetFileName(Path.GetDirectoryName(Path.GetDirectoryName(ExecutablePath))), UpdateFiles.StateFolder, StringComparison.OrdinalIgnoreCase);
+
+    private static bool HelperAlive(UpdateFiles files, UpdateRequest request)
+    {
+        if (request.HelperId <= 0) return false;
+        try
+        {
+            using var helper = Process.GetProcessById(request.HelperId);
+            _ = helper.Handle;
+            return !helper.HasExited && helper.StartTime.ToUniversalTime().Ticks == request.HelperStartTicks &&
+                string.Equals(helper.MainModule.FileName, files.Helper, StringComparison.OrdinalIgnoreCase);
+        }
+        catch (ArgumentException) { return false; }
+        catch (InvalidOperationException) { return false; }
+        catch (System.ComponentModel.Win32Exception ex) when (ex.NativeErrorCode == 5) { return true; }
+    }
+
+    internal static bool RecoverFromHelper()
+    {
+        try
+        {
+            string operation = Path.GetDirectoryName(ExecutablePath);
+            string id = Path.GetFileName(operation);
+            using var files = new UpdateFiles(Path.GetDirectoryName(Path.GetDirectoryName(operation)), id, false);
+            UpdateRequest request;
+            using (var record = new UpdateFiles.LockedFile(files.Journal, false)) request = Deserialize<UpdateRequest>(record.ReadText(32768));
+            if (request == null || request.OperationId != id || request.Protocol != 1 ||
+                !string.Equals(Path.GetDirectoryName(UpdateFiles.LocalPath(request.ParentPath)), files.Folder, StringComparison.OrdinalIgnoreCase))
+                throw new IOException("Invalid recovery journal.");
+            using (var self = new UpdateFiles.LockedFile(ExecutablePath, false)) self.RequireHash(request.ParentHash);
+            using (var active = new UpdateFiles.LockedFile(files.Active, false))
+                if (active.ReadText(32) != id) throw new IOException("This operation is no longer pending.");
+            if (HelperAlive(files, request)) throw new IOException("The update helper is still applying this update. Recovery did not change any files.");
+            try
+            {
+                using var parent = Process.GetProcessById(request.ParentId);
+                if (!parent.HasExited && parent.StartTime.ToUniversalTime().Ticks == request.ParentStartTicks)
+                    throw new IOException("The original application is still running. Finish its work before recovering.");
+            }
+            catch (ArgumentException) { }
+            string target = Path.Combine(files.Folder, CanonicalName);
+            if (!File.Exists(target) && !File.Exists(request.ParentPath))
+            {
+                using var backup = new UpdateFiles.LockedFile(files.Backup, true);
+                backup.RequireHash(request.ParentHash);
+                backup.Move(request.ParentPath); // Exact verified recovery; an occupied path is never overwritten.
+                files.PublishPermissions(request.ParentPath);
+            }
+            string launchPath = File.Exists(target) ? target : request.ParentPath;
+            using var guard = new UpdateFiles.LockedFile(launchPath, false);
+            string hash = guard.Hash();
+            if (!string.Equals(hash, request.ParentHash, StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(hash, request.Offer.Sha256, StringComparison.OrdinalIgnoreCase)) throw new IOException("Recovery target changed; no file was run.");
+            using var recovered = Process.Start(new ProcessStartInfo { FileName = launchPath, WorkingDirectory = files.Folder, UseShellExecute = false });
+            return recovered != null;
+        }
+        catch (Exception ex)
+        {
+            System.Windows.Forms.MessageBox.Show("Recovery kept all copies.\r\n\r\n" + ex.Message, "App update recovery",
+                System.Windows.Forms.MessageBoxButtons.OK, System.Windows.Forms.MessageBoxIcon.Warning);
+            return false;
+        }
+    }
+
+    internal static void RecoverConfirmed(UpdateFiles files, UpdateRequest request, string currentPath)
+    {
+        using var current = new UpdateFiles.LockedFile(currentPath, false);
+        string hash = current.Hash();
+        if (string.Equals(hash, request.ParentHash, StringComparison.OrdinalIgnoreCase))
+        {
+            files.ClearActive(request.OperationId); // Replacement never committed, or rollback succeeded.
+            File.WriteAllText(Path.Combine(files.Operation, "result.txt"), "Recovered: previous application remains current.");
+            return;
+        }
+        if (!string.Equals(hash, request.Offer.Sha256, StringComparison.OrdinalIgnoreCase))
+            throw new IOException("The current file differs from both recorded versions; recovery did not change any file.");
+        string archived = ArchivePrevious(files, request); // Called only after this new GUI is shown/painted.
+        File.WriteAllText(Path.Combine(files.Operation, "result.txt"), "Recovered new GUI startup; previous copy: " + archived);
+        files.ClearActive(request.OperationId);
     }
 
     internal static void ValidateRequest(UpdateRequest request, UpdateFiles files, string id)

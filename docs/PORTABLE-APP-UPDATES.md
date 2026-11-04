@@ -27,17 +27,23 @@ or framework migration is introduced.
 - A verified private copy of the current app runs an internal helper. Bounded
   stdin/stdout READY/GO binds the handoff to the parent PID, start time, path and
   checksum. The old window remains open until the helper is ready.
-- After the exact parent exits, handle-bound, no-overwrite renames move the exact
-  predecessor into private backup and the candidate to the canonical name. The
-  helper retains file and ancestor locks through launch. Launch uses no arguments;
+- After the exact parent exits, preserve an independently verified private snapshot
+  and replace the same-name canonical file using Windows `File.Replace`, retaining
+  its displaced target as well. A different-name existing target is never overwritten.
+  The helper verifies and pins the canonical file through launch. Launch uses no arguments;
   only an opaque readiness pipe name is passed in the child's environment.
 - Authenticate the pipe client PID against the retained launched process. Confirm
   shown/painted GUI readiness before archiving the exact predecessor as OLD-.
   OLD.V1-, OLD.V2-, etc. retain collisions without overwrite (up to 1000 attempts).
 - If launch fails and the successor is certainly gone, restore the predecessor
-  without overwriting another file. If a successor is still alive, retain it and
+  with another retained backup. If a successor is still alive, retain it and
   the private backup; do not terminate possible user work. Report incomplete
   startup and retain diagnostic/recovery files.
+- Publish a protected, flushed active-operation pointer only after the helper is
+  ready. On normal GUI startup, skip a live matching helper; otherwise inspect that
+  exact journal. A confirmed new GUI finishes OLD archiving, a current predecessor
+  clears an uncommitted/rolled-back handoff, and an already archived predecessor is
+  identified by deterministic names and exact hash. No newest-file guessing.
 
 Office product/channel/language choices, XML generation and deployment are
 unchanged. App updating is blocked during this app's Office work, and Office
@@ -45,10 +51,10 @@ work cannot start during app updating. No reboot, service, scheduled task or
 OS-state reset is part of this feature.
 
 Freshly renamed net48 executables can fail CLR startup while a DELETE-access
-handle remains open (reproduced as 0x80131700). After the candidate move, release
+handle remains open (reproduced as 0x80131700). After publication, release
 that movable handle and reacquire a read-only/no-delete-sharing guard, rehashing
 the exact canonical file before launch. A raced substitution is refused. Rollback
-similarly reacquires a movable target and rechecks its hash before moving it.
+also checks the current hash and retains any displaced file while restoring the snapshot.
 The real renamed-executable fixture covers this distinction; a fixture that only
 launches an already loaded executable can conceal the failure.
 
@@ -88,14 +94,23 @@ This is a draft POC, not authorization to publish or advance the stable manifest
 The stable manifest remains at v3.3.11. A future newer, separately approved
 stable release is required for a real in-app update through public metadata.
 
-The two no-overwrite renames are not an atomic single replacement. Power loss or
-helper termination between them can temporarily leave the canonical path absent.
-A flushed private `transaction.json` records exact paths/hashes before the move;
-the previous bytes remain at `previous.exe` in that same operation directory.
-If there is no confirmed successful startup, inspect that exact journal/result
-as administrator and recover only its matching previous file into an unoccupied
-original path. Never scan for a newest EXE or overwrite an unrelated file.
-There is no automatic interrupted-operation recovery/cleanup yet. Add durable
-recovery/atomicity coverage before production release. Retained staging may need
-owner-directed cleanup after acceptance. Mixed-DPI/remote-session behavior and
-real public stable-to-stable update acceptance remain VM work.
+`File.Replace` removes the application-created gap between two separate moves.
+The flushed private journal and independently verified predecessor snapshot also
+cover documented Windows replacement failures. ReplaceFileW can report a partial
+failure with the displaced name present but the canonical name absent; the helper
+restores an unoccupied canonical name from its exact snapshot. See
+[Microsoft's ReplaceFileW contract](https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-replacefilew).
+
+Interrupted handoffs complete on normal startup after the window is shown/painted.
+If storage failure prevents normal startup altogether, run `helper.exe` from the
+exact operation directory as administrator: its no-argument recovery entry validates
+its own hash and the protected journal/marker, refuses a live parent, restores only
+an unoccupied original path from verified bytes and runs only a recorded version.
+It never opens Office actions from staging. An unknown current hash is retained
+for diagnosis rather than overwritten.
+
+Fixtures simulate interruption before publication, after publication and after
+archive; an elevated real-GUI fixture checks all three normal-startup recovery
+paths. Actual electrical power-loss/storage-corruption testing is not claimed.
+Staging is retained for diagnosis and may need owner-directed cleanup. Mixed-DPI,
+remote sessions and public stable-to-stable acceptance remain owner VM checks.

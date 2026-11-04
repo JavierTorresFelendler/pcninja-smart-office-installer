@@ -32,11 +32,16 @@ internal static class Program
 				return 5;
 			}
 		}
+		if (PortableUpdate.IsRecoveryCopy) return PortableUpdate.RecoverFromHelper() ? 0 : 1;
 		Application.EnableVisualStyles();
 		Application.SetCompatibleTextRenderingDefault(defaultValue: false);
 		using var form = new InstallerForm();
-		if (UpdateReadiness.Valid(readyPipe))
-			form.Shown += delegate { form.BeginInvoke(new Action(async () => { form.Update(); await UpdateReadiness.SignalAsync(readyPipe); })); };
+        form.Shown += delegate { form.BeginInvoke(new Action(async () =>
+        {
+            form.Update();
+            await UpdateReadiness.SignalAsync(readyPipe);
+            if (form.Visible) PortableUpdate.RecoverAfterStartup();
+        })); };
 		Application.Run(form);
 		return 0;
 	}

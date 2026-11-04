@@ -4,6 +4,7 @@
 
 - Add consent-based in-app download, verification and same-name restart with OLD predecessor archival.
 - Add cancellation, busy-state guards, bounded helper handoff, GUI readiness and recovery diagnostics.
+- Replace the same-name EXE with a verified backup and complete interrupted updates on the next normal startup.
 - Candidate file version: `3.3.12.0`. Draft testing only; stable update discovery remains at v3.3.11.
 
 ## v3.3.11

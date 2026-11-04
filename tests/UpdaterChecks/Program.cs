@@ -32,6 +32,7 @@ internal static class Program
             DownloadChecks();
             MetadataAndAclChecks();
             foreach (string mode in new[] { "success", "rollback", "collision", "occupied-target", "changed-original" }) Transaction(mode);
+            foreach (string phase in new[] { "before-publication", "after-publication", "after-archive" }) Recovery(phase);
             string self = System.Reflection.Assembly.GetExecutingAssembly().Location;
             using var pinned = new UpdateFiles.LockedFile(self, true);
             bool ready = UpdateReadiness.Launch(self, out var launched);
@@ -94,7 +95,7 @@ internal static class Program
                 PortableUpdate.Launch launch = (string path, out Process process) =>
                 {
                     process = null;
-                    Check(candidate.PathName == path && Hash(File.ReadAllBytes(path)) == Hash(newBytes), "Launched wrong bytes.");
+                    Check(Hash(File.ReadAllBytes(path)) == Hash(newBytes), "Launched wrong bytes.");
                     return mode != "rollback";
                 };
                 if (mode == "rollback" || mode == "changed-original")
@@ -107,14 +108,15 @@ internal static class Program
                     File.WriteAllText(originalPath, "EXISTING TARGET");
                     try { PortableUpdate.Apply(files, request, original, candidate, launch); throw new Exception("Overwrote existing target."); }
                     catch (System.ComponentModel.Win32Exception) { }
+                    catch (IOException) { }
                     Check(File.ReadAllText(originalPath) == "EXISTING TARGET", "Existing target changed.");
-                    Check(original.Hash() == Hash(oldBytes), "Original bytes lost.");
+                    Check(Hash(File.ReadAllBytes(request.ParentPath)) == Hash(oldBytes), "Original bytes lost.");
                 }
                 else PortableUpdate.Apply(files, request, original, candidate, launch);
-                if (mode == "success") Check(File.Exists(oldArchive) && original.Hash() == Hash(oldBytes), "Missing OLD archive.");
+                if (mode == "success") Check(File.Exists(oldArchive) && Hash(File.ReadAllBytes(oldArchive)) == Hash(oldBytes), "Missing OLD archive.");
                 if (mode == "collision") Check(File.ReadAllText(oldArchive) == "PREEXISTING ARCHIVE" &&
-                    original.PathName == Path.Combine(folder, "OLD.V1-" + PortableUpdate.CanonicalName), "Archive collision overwrote bytes.");
-                if (mode == "rollback") Check(original.PathName == originalPath && original.Hash() == Hash(oldBytes), "Rollback did not restore original.");
+                    Hash(File.ReadAllBytes(Path.Combine(folder, "OLD.V1-" + PortableUpdate.CanonicalName))) == Hash(oldBytes), "Archive collision overwrote bytes.");
+                if (mode == "rollback") Check(Hash(File.ReadAllBytes(originalPath)) == Hash(oldBytes), "Rollback did not restore original.");
             }
         }
         finally
@@ -123,6 +125,37 @@ internal static class Program
             if (Path.GetDirectoryName(verified) == Path.GetTempPath().TrimEnd('\\') && Path.GetFileName(verified).StartsWith("PcNinja-OfficeFixture-", StringComparison.Ordinal))
                 Directory.Delete(verified, true);
         }
+    }
+
+    private static void Recovery(string phase)
+    {
+        string folder = Path.Combine(Path.GetTempPath(), "PcNinja-OfficeFixture-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(folder);
+        try
+        {
+            string id = Guid.NewGuid().ToString("N");
+            using var files = new UpdateFiles(folder, id, true, true);
+            byte[] oldBytes = Encoding.UTF8.GetBytes("RECOVERY OLD"), newBytes = Encoding.UTF8.GetBytes("RECOVERY NEW");
+            string target = Path.Combine(folder, PortableUpdate.CanonicalName);
+            File.WriteAllBytes(target, oldBytes);
+            File.WriteAllBytes(files.Candidate, newBytes);
+            var request = new UpdateRequest { OperationId = id, ParentPath = target, ParentHash = Hash(oldBytes),
+                Offer = new UpdateOffer { Version = "3.3.13.0", Sha256 = Hash(newBytes) } };
+            files.WriteJournal(request);
+            files.MarkActive(id);
+            using (var original = new UpdateFiles.LockedFile(target, false)) original.CopyToPrivate(files, files.Backup);
+            if (phase != "before-publication") File.Replace(files.Candidate, target, files.Displaced);
+            if (phase == "after-archive")
+            {
+                using var snapshot = new UpdateFiles.LockedFile(files.Backup, true);
+                snapshot.Archive(folder, PortableUpdate.CanonicalName);
+            }
+            Check(File.Exists(target), "Interrupted publication lost canonical EXE.");
+            PortableUpdate.RecoverConfirmed(files, request, target);
+            Check(!File.Exists(files.Active), "Recovery did not finish its exact marker.");
+            if (phase != "before-publication") Check(Hash(File.ReadAllBytes(Path.Combine(folder, "OLD-" + PortableUpdate.CanonicalName))) == Hash(oldBytes), "Recovery lost predecessor.");
+        }
+        finally { Directory.Delete(folder, true); }
     }
 
     private sealed class FakeHttp : HttpMessageHandler

@@ -60,7 +60,7 @@ internal static class UpdateReadiness
             using var reader = new StreamReader(client, Encoding.UTF8, false, 128, true);
             await Task.Run(() => PortableUpdate.ReadLine(reader, 128, 5000));
         }
-        catch (Exception ex) when (ex is IOException || ex is TimeoutException) { }
+        catch (Exception ex) when (ex is IOException || ex is TimeoutException || ex is UnauthorizedAccessException) { }
     }
     [DllImport("kernel32.dll", SetLastError = true)] private static extern bool GetNamedPipeClientProcessId(SafePipeHandle pipe, out uint processId);
 }

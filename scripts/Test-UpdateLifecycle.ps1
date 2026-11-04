@@ -38,3 +38,36 @@ if ((Get-FileHash -LiteralPath $old).Hash -ne $newHash -or
     throw 'Same-name replacement or exact predecessor archive mismatch.'
 }
 Write-Host "PASS: Elevated parent/helper same-name replacement, new GUI readiness and exact OLD archive. Disposable fixture retained at $fixture"
+foreach ($phase in @('before-publication', 'after-publication', 'after-archive', 'missing-canonical')) {
+    $phaseFolder = Join-Path $fixture $phase
+    New-Item -ItemType Directory -Path $phaseFolder | Out-Null
+    $current = Join-Path $phaseFolder 'Smart Office Installer.exe'
+    Copy-Item -LiteralPath (Join-Path $oldBuild 'LifecycleFixture.exe') -Destination $current
+    $stager = Start-Process -FilePath $current -ArgumentList (('"' + $new + '"'), '--stage-recovery') -PassThru -WindowStyle Hidden
+    if (-not $stager.WaitForExit(20000) -or $stager.ExitCode -ne 0) { throw "Recovery fixture staging failed: $phaseFolder" }
+    $state = Join-Path $phaseFolder '.pcninja-office-updates'
+    $id = Get-Content -LiteralPath (Join-Path $state 'active-operation') -Raw
+    if ($id -notmatch '^[a-f0-9]{32}$') { throw 'Invalid fixture operation.' }
+    $operation = Join-Path $state $id
+    if ($phase -ne 'before-publication' -and $phase -ne 'missing-canonical') {
+        [IO.File]::Replace((Join-Path $operation 'candidate.exe'), $current, (Join-Path $operation 'displaced.exe'))
+    }
+    if ($phase -eq 'after-archive') {
+        [IO.File]::Move((Join-Path $operation 'previous.exe'), (Join-Path $phaseFolder 'OLD-Smart Office Installer.exe'))
+    }
+    $launch = $current
+    if ($phase -eq 'missing-canonical') {
+        [IO.File]::Move($current, (Join-Path $operation 'displaced.exe'))
+        $launch = Join-Path $operation 'helper.exe'
+    }
+    $recovered = Start-Process -FilePath $launch -PassThru -WindowStyle Normal
+    if (-not $recovered.WaitForExit(20000) -or $recovered.ExitCode -ne 0) { throw "Recovery GUI failed: $phaseFolder" }
+    $recoveryDeadline = [DateTime]::UtcNow.AddSeconds(20)
+    while ((Test-Path -LiteralPath (Join-Path $state 'active-operation')) -and [DateTime]::UtcNow -lt $recoveryDeadline) { Start-Sleep -Milliseconds 100 }
+    if (Test-Path -LiteralPath (Join-Path $state 'active-operation')) { throw "Pending recovery was not cleared: $phaseFolder" }
+    if ($phase -eq 'missing-canonical' -and (Get-FileHash -LiteralPath $current).Hash -ne $oldHash) { throw 'Missing canonical recovery did not restore predecessor.' }
+    if ($phase -ne 'before-publication' -and $phase -ne 'missing-canonical' -and (Get-FileHash -LiteralPath (Join-Path $phaseFolder 'OLD-Smart Office Installer.exe')).Hash -ne $oldHash) {
+        throw 'Recovery archive bytes differ.'
+    }
+    Write-Host "PASS: Normal GUI startup recovered interruption at $phase."
+}
