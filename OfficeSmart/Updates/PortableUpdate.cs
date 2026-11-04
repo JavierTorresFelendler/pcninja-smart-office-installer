@@ -264,6 +264,7 @@ internal static class PortableUpdate
         }
         original.Move(files.Backup);
         Process launched = null;
+        UpdateFiles.LockedFile launchGuard = null;
         bool published = false, acknowledged = false;
         try
         {
@@ -271,21 +272,35 @@ internal static class PortableUpdate
             candidate.Move(target);
             published = true;
             files.PublishPermissions(target);
+            // CLR startup may refuse a freshly renamed image while a DELETE
+            // access handle is held. Reopen with read-only/no-delete sharing and
+            // reverify exact bytes before CreateProcess. Any raced substitution
+            // is rejected; no unverified path is ever launched.
+            candidate.Dispose();
+            launchGuard = new UpdateFiles.LockedFile(target, false);
+            launchGuard.RequireHash(request.Offer.Sha256);
             acknowledged = launch(target, out launched);
             if (!acknowledged) throw new IOException("The new window did not confirm startup.");
         }
         catch
         {
+            launchGuard?.Dispose();
             // Never kill a new process: it could already be doing user work.
             // Restore only when it is certainly gone, and only our exact bytes.
             if (launched == null || launched.HasExited)
             {
-                if (published) candidate.Move(Path.Combine(files.Operation, "failed.exe"));
+                if (published)
+                {
+                    candidate.Dispose();
+                    using var failed = new UpdateFiles.LockedFile(target, true);
+                    failed.RequireHash(request.Offer.Sha256);
+                    failed.Move(Path.Combine(files.Operation, "failed.exe"));
+                }
                 original.Move(request.ParentPath);
             }
             throw;
         }
-        finally { launched?.Dispose(); }
+        finally { launchGuard?.Dispose(); launched?.Dispose(); }
         if (acknowledged)
         {
             try

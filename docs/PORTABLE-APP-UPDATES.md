@@ -44,6 +44,14 @@ unchanged. App updating is blocked during this app's Office work, and Office
 work cannot start during app updating. No reboot, service, scheduled task or
 OS-state reset is part of this feature.
 
+Freshly renamed net48 executables can fail CLR startup while a DELETE-access
+handle remains open (reproduced as 0x80131700). After the candidate move, release
+that movable handle and reacquire a read-only/no-delete-sharing guard, rehashing
+the exact canonical file before launch. A raced substitution is refused. Rollback
+similarly reacquires a movable target and rechecks its hash before moving it.
+The real renamed-executable fixture covers this distinction; a fixture that only
+launches an already loaded executable can conceal the failure.
+
 ## Verification
 
 `Test-OfficeSmartPublicReady.ps1` builds, checks the existing package/manifest and

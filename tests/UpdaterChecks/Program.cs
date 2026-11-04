@@ -12,7 +12,7 @@ using OfficeSmart.Updates;
 internal static class Program
 {
     [STAThread]
-    private static int Main()
+    private static int Main(string[] args)
     {
         string pipe = Environment.GetEnvironmentVariable(UpdateReadiness.EnvironmentName);
         Environment.SetEnvironmentVariable(UpdateReadiness.EnvironmentName, null);
@@ -26,6 +26,7 @@ internal static class Program
         }
         try
         {
+            if (args.Length == 2) { RealExecutableTransaction(args[0], args[1]); return 0; }
             OfferChecks();
             StreamChecks();
             DownloadChecks();
@@ -93,7 +94,7 @@ internal static class Program
                 PortableUpdate.Launch launch = (string path, out Process process) =>
                 {
                     process = null;
-                    Check(candidate.PathName == path && candidate.Hash() == Hash(newBytes), "Launched wrong bytes.");
+                    Check(candidate.PathName == path && Hash(File.ReadAllBytes(path)) == Hash(newBytes), "Launched wrong bytes.");
                     return mode != "rollback";
                 };
                 if (mode == "rollback" || mode == "changed-original")
@@ -176,6 +177,31 @@ internal static class Program
             PortableUpdate.VerifyExecutable(file, version, file.Hash());
             Refused(() => PortableUpdate.VerifyExecutable(file, "99.0.0.0", file.Hash()));
             Refused(() => PortableUpdate.VerifyExecutable(file, version, new string('0', 64)));
+        }
+        finally { Directory.Delete(folder, true); }
+    }
+
+    private static void RealExecutableTransaction(string oldFile, string newFile)
+    {
+        string folder = Path.Combine(Path.GetTempPath(), "PcNinja-OfficeFixture-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(folder);
+        try
+        {
+            string originalPath = Path.Combine(folder, PortableUpdate.CanonicalName);
+            File.Copy(oldFile, originalPath);
+            using var files = new UpdateFiles(folder, Guid.NewGuid().ToString("N"), true, true);
+            File.Copy(newFile, files.Candidate);
+            using var original = new UpdateFiles.LockedFile(originalPath, true);
+            using var candidate = new UpdateFiles.LockedFile(files.Candidate, true);
+            var request = new UpdateRequest { ParentPath = originalPath, ParentHash = original.Hash(),
+                Offer = new UpdateOffer { Version = "3.3.13.0", Sha256 = candidate.Hash() } };
+            PortableUpdate.Apply(files, request, original, candidate, (string path, out Process process) =>
+            {
+                bool ready = UpdateReadiness.Launch(path, out process);
+                process.WaitForExit(5000);
+                return ready;
+            });
+            Console.WriteLine("PASS: Real WinExe launched and acknowledged after native same-name rename under retained locks.");
         }
         finally { Directory.Delete(folder, true); }
     }
