@@ -1,6 +1,6 @@
-# Portable app update POC
+# Portable app updates
 
-Draft implementation for the owner-requested WinUpgrade-style app updater.
+Released in v3.3.12 after owner VM acceptance of the WinUpgrade-style app updater.
 Reference reviewed: Win-Upgrade-Tool-by-PcNinja main `06f5344`, including
 `docs/APPLICATION-UPDATES.md`, AppUpdateFiles, AppUpdateInstaller and GUI readiness.
 This application remains .NET Framework 4.8; no WinUpgrade/Windows Setup dependency
@@ -13,8 +13,8 @@ or framework migration is introduced.
   name `SmartOfficeInstaller.exe`.
 - Startup checks metadata only. Explicit consent starts an in-app download dialog
   with cancellation. Opening the main update button no longer downloads through
-  a browser. Existing v3.3.11 copies need one manual bootstrap to a future approved
-  release containing this updater; they cannot gain new behavior retroactively.
+  a browser. Existing v3.3.11 and earlier copies use their previous browser download
+  flow once to obtain v3.3.12; they cannot gain new behavior retroactively.
 - Pin stable product/repository/tag/asset identity. Download the tag-specific EXE,
   bounded by time and bytes. Verify checksum, x64 PE, product/company and newer
   Windows file version. Honor minimumSupportedVersion. Refuse signed executables
@@ -88,11 +88,13 @@ production staging ACLs, new GUI readiness and predecessor hash/archive. It skip
 explicitly without an administrator context. Fixtures never deploy Office. CI
 runs these checks; local non-elevated results alone do not prove the full handoff.
 
-## Release hold and recovery limits
+## Acceptance and recovery limits
 
-This is a draft POC, not authorization to publish or advance the stable manifest.
-The stable manifest remains at v3.3.11. A future newer, separately approved
-stable release is required for a real in-app update through public metadata.
+The owner accepted the VM fixture from source 440d7d1: full elevated same-name
+replacement, new GUI readiness, exact OLD bytes and all four recovery cases.
+CI run 41849472331 passed the same checks. The released application is the exact
+accepted 3.3.12.0 binary; only documentation and stable metadata changed afterward.
+A future newer stable release is required to exercise public in-app version advancement.
 
 `File.Replace` removes the application-created gap between two separate moves.
 The flushed private journal and independently verified predecessor snapshot also
