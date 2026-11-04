@@ -1,10 +1,10 @@
 # Changelog
 
-## Unreleased candidate: v3.3.11
+## v3.3.11
 
 - Fit the family screen without scrolling; compact displays retain the website link instead of the large logo and repeated descriptive details.
 - Keep navigation buttons accessible after changing steps and completing an operation.
-- Candidate Windows file version: `3.3.11.0`. Awaiting owner VM acceptance; not published.
+- Windows file version: `3.3.11.0`. Owner VM acceptance completed before publication.
 
 ## v3.3.10
 

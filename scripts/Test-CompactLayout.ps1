@@ -1,9 +1,9 @@
-param([string]$Configuration = 'Release', [string]$ScreenshotDirectory = '')
+param([string]$Configuration = 'Release', [string]$ScreenshotDirectory = '', [string]$ExePath = '')
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 $root = Split-Path -Parent $PSScriptRoot
-$exe = Join-Path $root "bin\$Configuration\net48\Smart Office Installer.exe"
+$exe = if ($ExePath) { (Resolve-Path -LiteralPath $ExePath).Path } else { Join-Path $root "bin\$Configuration\net48\Smart Office Installer.exe" }
 if (-not (Test-Path -LiteralPath $exe)) { throw 'Build the application before running this check.' }
 $assembly = [System.Reflection.Assembly]::LoadFrom($exe)
 $type = $assembly.GetType('OfficeSmart.InstallerForm', $true)
