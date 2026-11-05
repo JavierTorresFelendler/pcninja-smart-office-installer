@@ -22,7 +22,7 @@ function Assert-CleanFixture([string]$Folder, [string]$CurrentHash, [bool]$Archi
     if (Test-Path -LiteralPath $statePath) { throw "Update work directory remained: $Folder" }
     Remove-Item -LiteralPath (Join-Path $Folder 'fixture-gui-process.txt')
     $expected = @('Smart Office Installer.exe')
-    if ($Archive) { $expected += 'OLD-Smart Office Installer.exe' }
+    if ($Archive) { $expected += 'Smart Office Installer-v3.3.12.0.exe' }
     $entries = @(Get-ChildItem -LiteralPath $Folder -Force)
     if ($entries.Count -ne $expected.Count -or @($entries | Where-Object { $_.PSIsContainer -or $_.Name -notin $expected }).Count -ne 0) {
         throw "Unexpected update leftovers: $Folder"
@@ -63,7 +63,7 @@ do {
     try {
             $status = if ($result.Count -gt 0) { [IO.File]::ReadAllText($result[0].FullName) } else { '' }
             $currentHash = (Get-FileHash -LiteralPath $old).Hash
-            $previousHash = (Get-FileHash -LiteralPath (Join-Path $fixture 'OLD-Smart Office Installer.exe')).Hash
+            $previousHash = (Get-FileHash -LiteralPath (Join-Path $fixture 'Smart Office Installer-v3.3.12.0.exe')).Hash
             $complete = ($currentHash -eq $newHash -and $previousHash -eq $oldHash -and -not (Test-Path -LiteralPath $state)) -or
                 (Test-CompletedAppUpdate $status $currentHash $newHash $previousHash $oldHash (Test-Path -LiteralPath (Join-Path $state 'active-operation')))
         } catch [IO.IOException] {
@@ -79,18 +79,19 @@ if (-not $complete) {
     throw "Helper did not report confirmed success. Inspect $fixture"
 }
 if ((Get-FileHash -LiteralPath $old).Hash -ne $newHash -or
-    (Get-FileHash -LiteralPath (Join-Path $fixture 'OLD-Smart Office Installer.exe')).Hash -ne $oldHash) {
+    (Get-FileHash -LiteralPath (Join-Path $fixture 'Smart Office Installer-v3.3.12.0.exe')).Hash -ne $oldHash) {
     throw 'Same-name replacement or exact predecessor archive mismatch.'
 }
 Write-Host "PASS: Elevated single-instance parent/helper same-name replacement, successor guard acquisition, new GUI readiness and exact OLD archive. Disposable fixture retained at $fixture"
 Wait-FixtureGuiExit $fixture
 Assert-CleanFixture $fixture $newHash $true
-foreach ($phase in @('before-publication', 'after-publication', 'after-archive', 'missing-canonical')) {
+foreach ($phase in @('before-publication', 'after-publication', 'after-archive', 'missing-canonical', 'legacy-completed')) {
     $phaseFolder = Join-Path $fixture $phase
     New-Item -ItemType Directory -Path $phaseFolder | Out-Null
     $current = Join-Path $phaseFolder 'Smart Office Installer.exe'
     Copy-Item -LiteralPath (Join-Path $oldBuild 'LifecycleFixture.exe') -Destination $current
-    $stager = Start-Process -FilePath $current -ArgumentList (('"' + $new + '"'), '--stage-recovery') -PassThru -WindowStyle Hidden
+    $stageMode = if ($phase -eq 'legacy-completed') { '--stage-legacy' } else { '--stage-recovery' }
+    $stager = Start-Process -FilePath $current -ArgumentList (('"' + $new + '"'), $stageMode) -PassThru -WindowStyle Hidden
     if (-not $stager.WaitForExit(20000) -or $stager.ExitCode -ne 0) { throw "Recovery fixture staging failed: $phaseFolder" }
     $state = Join-Path $phaseFolder '.pcninja-office-updates'
     $id = Get-Content -LiteralPath (Join-Path $state 'active-operation') -Raw
@@ -100,7 +101,13 @@ foreach ($phase in @('before-publication', 'after-publication', 'after-archive',
         [IO.File]::Replace((Join-Path $operation 'candidate.exe'), $current, (Join-Path $operation 'displaced.exe'))
     }
     if ($phase -eq 'after-archive') {
-        [IO.File]::Move((Join-Path $operation 'previous.exe'), (Join-Path $phaseFolder 'OLD-Smart Office Installer.exe'))
+        [IO.File]::Move((Join-Path $operation 'previous.exe'), (Join-Path $phaseFolder 'Smart Office Installer-v3.3.12.0.exe'))
+    }
+    if ($phase -eq 'legacy-completed') {
+        $legacy = Join-Path $phaseFolder 'OLD.V1-Smart Office Installer.exe'
+        [IO.File]::Move((Join-Path $operation 'previous.exe'), $legacy)
+        [IO.File]::WriteAllText((Join-Path $operation 'result.txt'), ('Updated to 3.3.13.0; previous copy: ' + $legacy))
+        Remove-Item -LiteralPath (Join-Path $state 'active-operation')
     }
     $launch = $current
     if ($phase -eq 'missing-canonical') {
@@ -113,12 +120,13 @@ foreach ($phase in @('before-publication', 'after-publication', 'after-archive',
     while ((Test-Path -LiteralPath (Join-Path $state 'active-operation')) -and [DateTime]::UtcNow -lt $recoveryDeadline) { Start-Sleep -Milliseconds 100 }
     if (Test-Path -LiteralPath (Join-Path $state 'active-operation')) { throw "Pending recovery was not cleared: $phaseFolder" }
     if ($phase -eq 'missing-canonical' -and (Get-FileHash -LiteralPath $current).Hash -ne $oldHash) { throw 'Missing canonical recovery did not restore predecessor.' }
-    if ($phase -ne 'before-publication' -and $phase -ne 'missing-canonical' -and (Get-FileHash -LiteralPath (Join-Path $phaseFolder 'OLD-Smart Office Installer.exe')).Hash -ne $oldHash) {
+    if ($phase -ne 'before-publication' -and $phase -ne 'missing-canonical' -and $phase -ne 'legacy-completed' -and (Get-FileHash -LiteralPath (Join-Path $phaseFolder 'Smart Office Installer-v3.3.12.0.exe')).Hash -ne $oldHash) {
         throw 'Recovery archive bytes differ.'
     }
     Wait-FixtureGuiExit $phaseFolder
     $hasArchive = $phase -ne 'before-publication' -and $phase -ne 'missing-canonical'
     $expectedCurrentHash = if ($hasArchive) { $newHash } else { $oldHash }
     Assert-CleanFixture $phaseFolder $expectedCurrentHash $hasArchive
+    if ($hasArchive -and (Get-FileHash -LiteralPath (Join-Path $phaseFolder 'Smart Office Installer-v3.3.12.0.exe')).Hash -ne $oldHash) { throw 'Versioned predecessor hash differs.' }
     Write-Host "PASS: Normal GUI startup recovered interruption at $phase."
 }

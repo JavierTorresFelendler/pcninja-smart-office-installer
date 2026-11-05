@@ -12,7 +12,7 @@ internal static class CleanupChecks
 
     internal static void Run()
     {
-        foreach (string mode in new[] { "success", "historical", "partial", "rollback", "pending", "unknown-file",
+        foreach (string mode in new[] { "success", "legacy", "historical", "partial", "rollback", "pending", "unknown-file",
             "unknown-directory", "changed-payload", "missing-archive", "wrong-result", "hardlink", "abandoned", "preparing", "empty" })
             Case(mode);
         Console.WriteLine("PASS: Completed/historical/partial/rollback/abandoned cleanup removes staging; pending work, preparation leases, unknown files, changed bytes and hard links are preserved.");
@@ -26,7 +26,8 @@ internal static class CleanupChecks
         try
         {
             string target = Path.Combine(folder, PortableUpdate.CanonicalName);
-            string archive = Path.Combine(folder, "OLD-" + PortableUpdate.CanonicalName);
+            string archive = Path.Combine(folder, UpdateArchives.Name(PortableUpdate.CanonicalName, "3.3.12.0"));
+            string originalArchive = mode == "legacy" ? Path.Combine(folder, "OLD.V1-" + PortableUpdate.CanonicalName) : archive;
             byte[] old = Encoding.UTF8.GetBytes("OLD"), next = Encoding.UTF8.GetBytes("NEW");
             File.WriteAllBytes(target, mode == "rollback" ? old : mode == "historical" ? Encoding.UTF8.GetBytes("LATER") : next);
             string id = Guid.NewGuid().ToString("N");
@@ -52,12 +53,12 @@ internal static class CleanupChecks
                 {
                     File.WriteAllBytes(files.Backup, old);
                     File.WriteAllBytes(files.Displaced, old);
-                    var request = new UpdateRequest { OperationId = id, ParentPath = target, ParentHash = Hash(old),
+                    var request = new UpdateRequest { OperationId = id, ParentPath = target, ParentHash = Hash(old), ParentVersion = "3.3.12.0",
                         Offer = new UpdateOffer { Version = "3.3.13.0", Sha256 = Hash(next) } };
                     files.WriteJournal(request);
-                    if (mode != "missing-archive" && mode != "rollback") File.WriteAllBytes(archive, old);
+                    if (mode != "missing-archive" && mode != "rollback") File.WriteAllBytes(originalArchive, old);
                     if (mode != "partial") File.WriteAllText(Path.Combine(operation, "result.txt"), mode == "wrong-result" ? "Update incomplete" :
-                        mode == "rollback" ? "Recovered: previous application remains current." : "Updated to 3.3.13.0; previous copy: " + archive);
+                        mode == "rollback" ? "Recovered: previous application remains current." : "Updated to 3.3.13.0; previous copy: " + originalArchive);
                     else { File.Delete(files.Helper); File.Delete(files.Displaced); }
                     if (mode == "pending") files.MarkActive(id);
                     if (mode == "unknown-file") File.WriteAllText(Path.Combine(operation, "keep.txt"), "KEEP");
@@ -74,7 +75,7 @@ internal static class CleanupChecks
             }
             string currentHash = Hash(File.ReadAllBytes(target));
             bool cleaned = UpdateCleanup.CleanOnce(target, new Version(3, 3, mode == "historical" ? 14 : 13, 0), true);
-            bool expected = mode == "success" || mode == "historical" || mode == "partial" || mode == "rollback" ||
+            bool expected = mode == "success" || mode == "legacy" || mode == "historical" || mode == "partial" || mode == "rollback" ||
                 mode == "abandoned" || mode == "preparing" || mode == "empty";
             Check(cleaned == expected, "Unexpected cleanup outcome: " + mode);
             Check(currentHash == Hash(File.ReadAllBytes(target)), "Current executable changed: " + mode);
@@ -82,6 +83,7 @@ internal static class CleanupChecks
             {
                 Check(!Directory.Exists(Path.Combine(folder, UpdateFiles.StateFolder)), "Staging remained: " + mode);
                 if (mode == "success") Check(Directory.GetFileSystemEntries(folder).Length == 2, "Expected exactly current and OLD executables.");
+                if (mode == "legacy") Check(File.Exists(archive) && !File.Exists(originalArchive), "Legacy backup was not migrated.");
             }
             else
             {

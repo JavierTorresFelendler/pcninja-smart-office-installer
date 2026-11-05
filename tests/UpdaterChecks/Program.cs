@@ -32,7 +32,7 @@ internal static class Program
             DownloadChecks();
             MetadataAndAclChecks();
             CleanupChecks.Run();
-            foreach (string mode in new[] { "success", "rollback", "collision", "occupied-target", "changed-original" }) Transaction(mode);
+            foreach (string mode in new[] { "success", "rollback", "collision", "identical", "occupied-target", "changed-original" }) Transaction(mode);
             foreach (string phase in new[] { "before-publication", "after-publication", "after-archive" }) Recovery(phase);
             string self = System.Reflection.Assembly.GetExecutingAssembly().Location;
             using var pinned = new UpdateFiles.LockedFile(self, true);
@@ -85,9 +85,12 @@ internal static class Program
             using (var files = new UpdateFiles(folder, Guid.NewGuid().ToString("N"), true, true))
             {
                 File.WriteAllBytes(files.Candidate, newBytes);
-                string oldArchive = Path.Combine(folder, "OLD-" + PortableUpdate.CanonicalName);
+                string oldArchive = Path.Combine(folder, UpdateArchives.Name(PortableUpdate.CanonicalName, "3.3.12.0"));
                 if (mode == "collision") File.WriteAllText(oldArchive, "PREEXISTING ARCHIVE");
-                var request = new UpdateRequest { ParentPath = originalPath, ParentHash = Hash(oldBytes),
+                if (mode == "identical") File.WriteAllBytes(oldArchive, oldBytes);
+                string legacy = Path.Combine(folder, "OLD-" + PortableUpdate.CanonicalName);
+                File.WriteAllText(legacy, "EXISTING LEGACY BACKUP");
+                var request = new UpdateRequest { ParentPath = originalPath, ParentHash = Hash(oldBytes), ParentVersion = "3.3.12.0",
                     Offer = new UpdateOffer { Version = "3.3.12.0", Sha256 = Hash(newBytes) } };
                 if (mode == "changed-original") File.WriteAllText(originalPath, "CHANGED");
                 using var original = new UpdateFiles.LockedFile(originalPath, true);
@@ -115,8 +118,10 @@ internal static class Program
                 }
                 else PortableUpdate.Apply(files, request, original, candidate, launch);
                 if (mode == "success") Check(File.Exists(oldArchive) && Hash(File.ReadAllBytes(oldArchive)) == Hash(oldBytes), "Missing OLD archive.");
+                if (mode == "identical") Check(Hash(File.ReadAllBytes(oldArchive)) == Hash(oldBytes) && !File.Exists(files.Backup), "Identical versioned backup was not reused.");
+                Check(File.ReadAllText(legacy) == "EXISTING LEGACY BACKUP", "Pre-existing legacy backup changed.");
                 if (mode == "collision") Check(File.ReadAllText(oldArchive) == "PREEXISTING ARCHIVE" &&
-                    Hash(File.ReadAllBytes(Path.Combine(folder, "OLD.V1-" + PortableUpdate.CanonicalName))) == Hash(oldBytes), "Archive collision overwrote bytes.");
+                    Hash(File.ReadAllBytes(Path.Combine(folder, UpdateArchives.Name(PortableUpdate.CanonicalName, "3.3.12.0", Hash(oldBytes))))) == Hash(oldBytes), "Archive collision overwrote bytes.");
                 if (mode == "rollback") Check(Hash(File.ReadAllBytes(originalPath)) == Hash(oldBytes), "Rollback did not restore original.");
             }
         }
@@ -140,7 +145,7 @@ internal static class Program
             string target = Path.Combine(folder, PortableUpdate.CanonicalName);
             File.WriteAllBytes(target, oldBytes);
             File.WriteAllBytes(files.Candidate, newBytes);
-            var request = new UpdateRequest { OperationId = id, ParentPath = target, ParentHash = Hash(oldBytes),
+            var request = new UpdateRequest { OperationId = id, ParentPath = target, ParentHash = Hash(oldBytes), ParentVersion = "3.3.12.0",
                 Offer = new UpdateOffer { Version = "3.3.13.0", Sha256 = Hash(newBytes) } };
             files.WriteJournal(request);
             files.MarkActive(id);
@@ -149,12 +154,12 @@ internal static class Program
             if (phase == "after-archive")
             {
                 using var snapshot = new UpdateFiles.LockedFile(files.Backup, true);
-                snapshot.Archive(folder, PortableUpdate.CanonicalName);
+                UpdateArchives.Archive(files, request, snapshot);
             }
             Check(File.Exists(target), "Interrupted publication lost canonical EXE.");
             PortableUpdate.RecoverConfirmed(files, request, target);
             Check(!File.Exists(files.Active), "Recovery did not finish its exact marker.");
-            if (phase != "before-publication") Check(Hash(File.ReadAllBytes(Path.Combine(folder, "OLD-" + PortableUpdate.CanonicalName))) == Hash(oldBytes), "Recovery lost predecessor.");
+            if (phase != "before-publication") Check(Hash(File.ReadAllBytes(Path.Combine(folder, UpdateArchives.Name(PortableUpdate.CanonicalName, "3.3.12.0")))) == Hash(oldBytes), "Recovery lost predecessor.");
         }
         finally { Directory.Delete(folder, true); }
     }
@@ -227,7 +232,7 @@ internal static class Program
             File.Copy(newFile, files.Candidate);
             using var original = new UpdateFiles.LockedFile(originalPath, true);
             using var candidate = new UpdateFiles.LockedFile(files.Candidate, true);
-            var request = new UpdateRequest { ParentPath = originalPath, ParentHash = original.Hash(),
+            var request = new UpdateRequest { ParentPath = originalPath, ParentHash = original.Hash(), ParentVersion = "3.3.12.0",
                 Offer = new UpdateOffer { Version = "3.3.13.0", Sha256 = candidate.Hash() } };
             PortableUpdate.Apply(files, request, original, candidate, (string path, out Process process) =>
             {
