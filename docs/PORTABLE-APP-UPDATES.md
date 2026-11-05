@@ -58,6 +58,29 @@ also checks the current hash and retains any displaced file while restoring the 
 The real renamed-executable fixture covers this distinction; a fixture that only
 launches an already loaded executable can conceal the failure.
 
+## Automatic work-file cleanup (v3.3.14)
+
+After GUI readiness and recovery, the canonical EXE starts a separate internal
+cleanup process without another window or UAC prompt. It waits for the recorded
+helper to exit and the active recovery pointer to clear, then removes only known,
+verified update artifacts. Successful updates leave the current EXE and OLD
+predecessor; existing OLD archives are never deleted or overwritten. Completed
+operations from older releases are handled on startup too.
+
+The current EXE is pinned and verified throughout cleanup. A completed update
+requires its exact OLD predecessor outside staging. All work files are pinned and
+checked before deletion; journals are removed last so interrupted cleanup can
+resume. Empty directories are removed individually, without recursive deletion.
+Active preparation uses a kernel delete-on-close lease so cleanup cannot discard
+an update being downloaded. Known abandoned downloads and confirmed rollbacks
+can also be cleared while their verified current EXE is retained.
+
+Pending operations, unsafe ACLs, reparse points, hard links, modified payloads,
+unknown names and subdirectories are preserved. A failed attempt retries for up
+to 30 seconds and on later startup. Cleanup never deletes user files, OLD archives,
+or the only recovery copy. The elevated lifecycle fixture checks exact directory
+contents after normal updates and all four recovery cases.
+
 ## Verification
 
 `Test-OfficeSmartPublicReady.ps1` builds, checks the existing package/manifest and
@@ -120,5 +143,5 @@ for diagnosis rather than overwritten.
 Fixtures simulate interruption before publication, after publication and after
 archive; an elevated real-GUI fixture checks all three normal-startup recovery
 paths. Actual electrical power-loss/storage-corruption testing is not claimed.
-Staging is retained for diagnosis and may need owner-directed cleanup. Mixed-DPI,
+Unresolved/unknown staging is retained for diagnosis. Completed staging is cleaned automatically. Mixed-DPI,
 remote sessions and public stable-to-stable acceptance remain owner VM checks.

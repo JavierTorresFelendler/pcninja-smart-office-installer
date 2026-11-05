@@ -31,6 +31,7 @@ internal static class Program
             StreamChecks();
             DownloadChecks();
             MetadataAndAclChecks();
+            CleanupChecks.Run();
             foreach (string mode in new[] { "success", "rollback", "collision", "occupied-target", "changed-original" }) Transaction(mode);
             foreach (string phase in new[] { "before-publication", "after-publication", "after-archive" }) Recovery(phase);
             string self = System.Reflection.Assembly.GetExecutingAssembly().Location;

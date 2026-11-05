@@ -15,6 +15,21 @@ function Wait-FixtureGuiExit([string]$Folder) {
         if (-not $gui.WaitForExit(10000)) { throw "Disposable GUI did not close: $Folder" }
     } finally { $gui.Dispose() }
 }
+function Assert-CleanFixture([string]$Folder, [string]$CurrentHash, [bool]$Archive) {
+    $statePath = Join-Path $Folder '.pcninja-office-updates'
+    $deadline = [DateTime]::UtcNow.AddSeconds(20)
+    while ((Test-Path -LiteralPath $statePath) -and [DateTime]::UtcNow -lt $deadline) { Start-Sleep -Milliseconds 100 }
+    if (Test-Path -LiteralPath $statePath) { throw "Update work directory remained: $Folder" }
+    Remove-Item -LiteralPath (Join-Path $Folder 'fixture-gui-process.txt')
+    $expected = @('Smart Office Installer.exe')
+    if ($Archive) { $expected += 'OLD-Smart Office Installer.exe' }
+    $entries = @(Get-ChildItem -LiteralPath $Folder -Force)
+    if ($entries.Count -ne $expected.Count -or @($entries | Where-Object { $_.PSIsContainer -or $_.Name -notin $expected }).Count -ne 0) {
+        throw "Unexpected update leftovers: $Folder"
+    }
+    if ((Get-FileHash -LiteralPath (Join-Path $Folder 'Smart Office Installer.exe')).Hash -ne $CurrentHash) { throw 'Cleanup changed the current executable.' }
+    Write-Host "PASS: No work directory or extra files remain at $Folder"
+}
 $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
 if (-not ([Security.Principal.WindowsPrincipal]$identity).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
     Write-Host 'SKIP: Elevated fixture required for production staging ACL and parent/helper handoff.'
@@ -45,18 +60,17 @@ $status = ''
 $state = Join-Path $fixture '.pcninja-office-updates'
 do {
     $result = @(Get-ChildItem -LiteralPath $state -Filter result.txt -Recurse -ErrorAction SilentlyContinue)
-    if ($result.Count -gt 0) {
-        try {
-            $status = [IO.File]::ReadAllText($result[0].FullName)
+    try {
+            $status = if ($result.Count -gt 0) { [IO.File]::ReadAllText($result[0].FullName) } else { '' }
             $currentHash = (Get-FileHash -LiteralPath $old).Hash
             $previousHash = (Get-FileHash -LiteralPath (Join-Path $fixture 'OLD-Smart Office Installer.exe')).Hash
-            $complete = Test-CompletedAppUpdate $status $currentHash $newHash $previousHash $oldHash (Test-Path -LiteralPath (Join-Path $state 'active-operation'))
+            $complete = ($currentHash -eq $newHash -and $previousHash -eq $oldHash -and -not (Test-Path -LiteralPath $state)) -or
+                (Test-CompletedAppUpdate $status $currentHash $newHash $previousHash $oldHash (Test-Path -LiteralPath (Join-Path $state 'active-operation')))
         } catch [IO.IOException] {
             # The helper may still be writing its result or publishing the archive.
         } catch [System.Management.Automation.ItemNotFoundException] {
             # Archive publication has not finished yet.
         }
-    }
     if ($complete) { break }
     Start-Sleep -Milliseconds 200
 } while ([DateTime]::UtcNow -lt $deadline)
@@ -70,6 +84,7 @@ if ((Get-FileHash -LiteralPath $old).Hash -ne $newHash -or
 }
 Write-Host "PASS: Elevated single-instance parent/helper same-name replacement, successor guard acquisition, new GUI readiness and exact OLD archive. Disposable fixture retained at $fixture"
 Wait-FixtureGuiExit $fixture
+Assert-CleanFixture $fixture $newHash $true
 foreach ($phase in @('before-publication', 'after-publication', 'after-archive', 'missing-canonical')) {
     $phaseFolder = Join-Path $fixture $phase
     New-Item -ItemType Directory -Path $phaseFolder | Out-Null
@@ -102,5 +117,8 @@ foreach ($phase in @('before-publication', 'after-publication', 'after-archive',
         throw 'Recovery archive bytes differ.'
     }
     Wait-FixtureGuiExit $phaseFolder
+    $hasArchive = $phase -ne 'before-publication' -and $phase -ne 'missing-canonical'
+    $expectedCurrentHash = if ($hasArchive) { $newHash } else { $oldHash }
+    Assert-CleanFixture $phaseFolder $expectedCurrentHash $hasArchive
     Write-Host "PASS: Normal GUI startup recovered interruption at $phase."
 }

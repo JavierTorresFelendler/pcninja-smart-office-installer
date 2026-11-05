@@ -112,14 +112,15 @@ internal sealed class UpdateFiles : IDisposable
         sid.IsWellKnown(WellKnownSidType.LocalSystemSid);
     private bool AllowedSid(SecurityIdentifier sid) => TrustedSid(sid) || (fixtureUser != null && sid == fixtureUser);
 
-    internal FileStream CreatePrivate(string path)
+    internal FileStream CreatePrivate(string path, bool deleteOnClose = false)
     {
         string sddl = fixtureUser == null ? PrivateAcl : "O:" + fixtureUser.Value + "G:" + fixtureUser.Value + "D:P(A;OICI;FA;;;" + fixtureUser.Value + ")";
         if (!ConvertStringSecurityDescriptorToSecurityDescriptorW(sddl, 1, out var descriptor, out _)) throw Error("Cannot prepare file permissions.");
         try
         {
             var security = new SecurityAttributes { Length = Marshal.SizeOf(typeof(SecurityAttributes)), Descriptor = descriptor };
-            var handle = CreateFileSecure(path, 0x40000000, 0, ref security, 1, 0x00200000, IntPtr.Zero);
+            var handle = CreateFileSecure(path, 0x40000000 | (deleteOnClose ? 0x10000u : 0), 0, ref security, 1,
+                0x00200000 | (deleteOnClose ? 0x04000000u : 0), IntPtr.Zero);
             if (handle.IsInvalid) { handle.Dispose(); throw Error("Cannot create a private update record without overwriting a file."); }
             return new FileStream(handle, FileAccess.Write);
         }
@@ -227,6 +228,19 @@ internal sealed class UpdateFiles : IDisposable
                 PathName = destination;
             }
             finally { Marshal.FreeHGlobal(buffer); }
+        }
+        internal void Delete()
+        {
+            // Delete the exact ordinary file we verified, never a subsequently
+            // substituted pathname. The caller must open it with movable=true.
+            IntPtr disposition = Marshal.AllocHGlobal(1);
+            try
+            {
+                Marshal.WriteByte(disposition, 1);
+                if (!SetFileInformationByHandle(stream.SafeFileHandle, 4, disposition, 1))
+                    throw Error("Cannot remove the verified update work file.");
+            }
+            finally { Marshal.FreeHGlobal(disposition); }
         }
         internal string Archive(string folder, string originalName)
         {
