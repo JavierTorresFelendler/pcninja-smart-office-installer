@@ -53,7 +53,7 @@ if ((Get-FileHash -LiteralPath $old).Hash -ne $newHash -or
     (Get-FileHash -LiteralPath (Join-Path $fixture 'OLD-Smart Office Installer.exe')).Hash -ne $oldHash) {
     throw 'Same-name replacement or exact predecessor archive mismatch.'
 }
-Write-Host "PASS: Elevated parent/helper same-name replacement, new GUI readiness and exact OLD archive. Disposable fixture retained at $fixture"
+Write-Host "PASS: Elevated single-instance parent/helper same-name replacement, successor guard acquisition, new GUI readiness and exact OLD archive. Disposable fixture retained at $fixture"
 foreach ($phase in @('before-publication', 'after-publication', 'after-archive', 'missing-canonical')) {
     $phaseFolder = Join-Path $fixture $phase
     New-Item -ItemType Directory -Path $phaseFolder | Out-Null

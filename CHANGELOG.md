@@ -1,10 +1,12 @@
 # Changelog
 
-## Unreleased — single-instance GUI (issue #6)
+## v3.3.13
 
 - Opening the installer while it is already running no longer starts a second copy;
   the running window is restored and brought to the front, without a UAC prompt.
 - Uses the shared `shared/PcNinjaSingleInstance.cs` guard (same file in all PcNinja tools).
+- Verify update/recovery handoff with the single-instance guard held by the old GUI and reacquired by its successor.
+- Windows file version: `3.3.13.0`. Owner VM checks and manual GUI acceptance completed before publication.
 
 ## v3.3.12
 

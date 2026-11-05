@@ -5,4 +5,5 @@
     <AssemblyName>LifecycleFixture</AssemblyName><Company>PcNinja.Pro</Company><Product>Smart Office Installer</Product>
   </PropertyGroup>
   <ItemGroup><Compile Include="..\..\OfficeSmart\Updates\*.cs" Link="Updates\%(Filename)%(Extension)" /><Reference Include="System.Net.Http" /></ItemGroup>
+  <ItemGroup><Compile Include="..\..\shared\PcNinjaSingleInstance.cs" Link="PcNinjaSingleInstance.cs" /></ItemGroup>
 </Project>
