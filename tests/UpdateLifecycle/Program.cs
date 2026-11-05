@@ -21,6 +21,9 @@ internal static class Program
         if (singleInstance == null) return 6;
         if (UpdateReadiness.Valid(readiness) || args.Length == 0)
         {
+            using (var gui = Process.GetCurrentProcess())
+                File.WriteAllText(Path.Combine(Path.GetDirectoryName(PortableUpdate.ExecutablePath), "fixture-gui-process.txt"),
+                    gui.Id + "," + gui.StartTime.ToUniversalTime().Ticks);
             Application.EnableVisualStyles();
             using var form = new Form { Text = "Application updater VM fixture - no Office operations", Width = 500 };
             form.Shown += async (_, _) => { form.Update(); await UpdateReadiness.SignalAsync(readiness); PortableUpdate.RecoverAfterStartup(); await System.Threading.Tasks.Task.Delay(1000); form.Close(); };
