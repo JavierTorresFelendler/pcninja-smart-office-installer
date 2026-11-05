@@ -32,7 +32,7 @@ internal static class Program
             DownloadChecks();
             MetadataAndAclChecks();
             CleanupChecks.Run();
-            foreach (string mode in new[] { "success", "rollback", "collision", "identical", "occupied-target", "changed-original" }) Transaction(mode);
+            foreach (string mode in new[] { "success", "rollback", "collision", "identical", "legacy-duplicate", "occupied-target", "changed-original" }) Transaction(mode);
             foreach (string phase in new[] { "before-publication", "after-publication", "after-archive" }) Recovery(phase);
             string self = System.Reflection.Assembly.GetExecutingAssembly().Location;
             using var pinned = new UpdateFiles.LockedFile(self, true);
@@ -87,9 +87,9 @@ internal static class Program
                 File.WriteAllBytes(files.Candidate, newBytes);
                 string oldArchive = Path.Combine(folder, UpdateArchives.Name(PortableUpdate.CanonicalName, "3.3.12.0"));
                 if (mode == "collision") File.WriteAllText(oldArchive, "PREEXISTING ARCHIVE");
-                if (mode == "identical") File.WriteAllBytes(oldArchive, oldBytes);
+                if (mode == "identical" || mode == "legacy-duplicate") File.WriteAllBytes(oldArchive, oldBytes);
                 string legacy = Path.Combine(folder, "OLD-" + PortableUpdate.CanonicalName);
-                File.WriteAllText(legacy, "EXISTING LEGACY BACKUP");
+                File.WriteAllBytes(legacy, mode == "legacy-duplicate" ? oldBytes : Encoding.UTF8.GetBytes("EXISTING LEGACY BACKUP"));
                 var request = new UpdateRequest { ParentPath = originalPath, ParentHash = Hash(oldBytes), ParentVersion = "3.3.12.0",
                     Offer = new UpdateOffer { Version = "3.3.12.0", Sha256 = Hash(newBytes) } };
                 if (mode == "changed-original") File.WriteAllText(originalPath, "CHANGED");
@@ -119,7 +119,8 @@ internal static class Program
                 else PortableUpdate.Apply(files, request, original, candidate, launch);
                 if (mode == "success") Check(File.Exists(oldArchive) && Hash(File.ReadAllBytes(oldArchive)) == Hash(oldBytes), "Missing OLD archive.");
                 if (mode == "identical") Check(Hash(File.ReadAllBytes(oldArchive)) == Hash(oldBytes) && !File.Exists(files.Backup), "Identical versioned backup was not reused.");
-                Check(File.ReadAllText(legacy) == "EXISTING LEGACY BACKUP", "Pre-existing legacy backup changed.");
+                if (mode == "legacy-duplicate") Check(!File.Exists(legacy) && Hash(File.ReadAllBytes(oldArchive)) == Hash(oldBytes), "Exact legacy duplicate was not retired safely.");
+                else Check(File.ReadAllText(legacy) == "EXISTING LEGACY BACKUP", "Pre-existing legacy backup changed.");
                 if (mode == "collision") Check(File.ReadAllText(oldArchive) == "PREEXISTING ARCHIVE" &&
                     Hash(File.ReadAllBytes(Path.Combine(folder, UpdateArchives.Name(PortableUpdate.CanonicalName, "3.3.12.0", Hash(oldBytes))))) == Hash(oldBytes), "Archive collision overwrote bytes.");
                 if (mode == "rollback") Check(Hash(File.ReadAllBytes(originalPath)) == Hash(oldBytes), "Rollback did not restore original.");

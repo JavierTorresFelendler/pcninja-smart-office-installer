@@ -134,7 +134,7 @@ internal static class UpdateCleanup
                         using (var source = new UpdateFiles.LockedFile(path, true)) archive = UpdateArchives.Archive(files, request, source);
                         archiveGuard = new UpdateFiles.LockedFile(archive, false);
                         archiveGuard.RequireHash(request.ParentHash);
-                        files.PublishPermissions(archive);
+                        UpdateArchives.Publish(files, request, archive);
                     }
                     var payloads = new List<UpdateFiles.LockedFile>();
                     UpdateFiles.LockedFile result = null;

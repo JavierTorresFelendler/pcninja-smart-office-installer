@@ -94,5 +94,13 @@ internal static class UpdateArchives
         using var archived = new UpdateFiles.LockedFile(path, false);
         archived.RequireHash(request.ParentHash);
         files.PublishPermissions(path);
+        // An older helper may have created OLD.Vn even when this exact
+        // versioned predecessor already existed. Retire only proven duplicates.
+        foreach (string legacy in LegacyPaths(files.Folder, Path.GetFileName(request.ParentPath)))
+        {
+            if (!File.Exists(legacy)) continue;
+            using var duplicate = new UpdateFiles.LockedFile(legacy, true);
+            if (string.Equals(duplicate.Hash(), request.ParentHash, StringComparison.OrdinalIgnoreCase)) duplicate.Delete();
+        }
     }
 }
