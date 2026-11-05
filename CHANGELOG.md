@@ -1,5 +1,12 @@
 # Changelog
 
+## v3.3.14
+
+- Automatically remove verified update work files after successful upgrade, leaving the current EXE and its OLD predecessor beside each other.
+- Clean completed staging from earlier releases when the new GUI starts; a separate internal cleanup process can finish even if the GUI is closed immediately.
+- Preserve pending recovery, unknown files and changed bytes. Never recursively delete application directories or remove OLD archives.
+- Windows file version: `3.3.14.0`.
+
 ## v3.3.13
 
 - Opening the installer while it is already running no longer starts a second copy;

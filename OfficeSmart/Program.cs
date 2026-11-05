@@ -16,7 +16,8 @@ internal static class Program
 	private static int Main(string[] args)
 	{
 		if (args.Length != 0)
-			return args.Length == 1 && args[0] == PortableUpdate.HelperArgument ? PortableUpdate.RunHelper() : 2;
+			return args.Length != 1 ? 2 : args[0] == PortableUpdate.HelperArgument ? PortableUpdate.RunHelper() :
+                args[0] == UpdateCleanup.Argument ? UpdateCleanup.Run() : 2;
 		string readyPipe = Environment.GetEnvironmentVariable(UpdateReadiness.EnvironmentName);
 		Environment.SetEnvironmentVariable(UpdateReadiness.EnvironmentName, null);
 		// GUI is single-instance per Windows session. A second launch focuses the
@@ -49,7 +50,11 @@ internal static class Program
         {
             form.Update();
             await UpdateReadiness.SignalAsync(readyPipe);
-            if (form.Visible) PortableUpdate.RecoverAfterStartup();
+            if (form.Visible)
+            {
+                PortableUpdate.RecoverAfterStartup();
+                UpdateCleanup.Start();
+            }
         })); };
 		Application.Run(form);
 		return 0;

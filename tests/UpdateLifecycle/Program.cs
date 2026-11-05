@@ -12,6 +12,7 @@ internal static class Program
     private static int Main(string[] args)
     {
         if (args.Length == 1 && args[0] == PortableUpdate.HelperArgument) return PortableUpdate.RunHelper();
+        if (args.Length == 1 && args[0] == UpdateCleanup.Argument) return UpdateCleanup.Run();
         if (args.Length == 0 && PortableUpdate.IsRecoveryCopy) return PortableUpdate.IsAdmin && PortableUpdate.RecoverFromHelper() ? 0 : 5;
         string readiness = Environment.GetEnvironmentVariable(UpdateReadiness.EnvironmentName);
         Environment.SetEnvironmentVariable(UpdateReadiness.EnvironmentName, null);
@@ -26,7 +27,7 @@ internal static class Program
                     gui.Id + "," + gui.StartTime.ToUniversalTime().Ticks);
             Application.EnableVisualStyles();
             using var form = new Form { Text = "Application updater VM fixture - no Office operations", Width = 500 };
-            form.Shown += async (_, _) => { form.Update(); await UpdateReadiness.SignalAsync(readiness); PortableUpdate.RecoverAfterStartup(); await System.Threading.Tasks.Task.Delay(1000); form.Close(); };
+            form.Shown += async (_, _) => { form.Update(); await UpdateReadiness.SignalAsync(readiness); PortableUpdate.RecoverAfterStartup(); UpdateCleanup.Start(); await System.Threading.Tasks.Task.Delay(1000); form.Close(); };
             Application.Run(form);
             return 0;
         }

@@ -162,6 +162,7 @@ internal static class PortableUpdate
         ValidateOffer(offer, current);
         string id = Guid.NewGuid().ToString("N");
         using var files = new UpdateFiles(Path.GetDirectoryName(parentPath), id, true);
+        using var preparation = files.CreatePrivate(Path.Combine(files.Operation, "preparing.lock"), deleteOnClose: true);
         if (File.Exists(files.Active)) throw new IOException("A previous app update is pending. Reopen the app to complete recovery first.");
         using var original = new UpdateFiles.LockedFile(parentPath, false);
         string originalHash = original.Hash();
@@ -417,7 +418,7 @@ internal static class PortableUpdate
     internal static bool IsRecoveryCopy => string.Equals(Path.GetFileName(ExecutablePath), "helper.exe", StringComparison.OrdinalIgnoreCase) &&
         string.Equals(Path.GetFileName(Path.GetDirectoryName(Path.GetDirectoryName(ExecutablePath))), UpdateFiles.StateFolder, StringComparison.OrdinalIgnoreCase);
 
-    private static bool HelperAlive(UpdateFiles files, UpdateRequest request)
+    internal static bool HelperAlive(UpdateFiles files, UpdateRequest request)
     {
         if (request.HelperId <= 0) return false;
         try
