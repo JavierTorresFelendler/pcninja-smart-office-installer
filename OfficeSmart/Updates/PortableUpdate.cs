@@ -384,7 +384,8 @@ internal static class PortableUpdate
     {
         if (!IsAdmin) return;
         string folder = Path.GetDirectoryName(ExecutablePath);
-        if (!File.Exists(Path.Combine(folder, UpdateFiles.StateFolder, "active-operation"))) return;
+        string activePath = Path.Combine(folder, UpdateFiles.StateFolder, "active-operation");
+        if (!File.Exists(activePath)) return;
         try
         {
             using var state = new UpdateFiles(folder, Guid.Empty.ToString("N"), false, stateOnly: true);
@@ -397,8 +398,12 @@ internal static class PortableUpdate
                 !string.Equals(Path.GetDirectoryName(UpdateFiles.LocalPath(request.ParentPath)), files.Folder, StringComparison.OrdinalIgnoreCase) ||
                 !request.ParentPath.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)) throw new IOException("Invalid recovery record.");
             if (HelperAlive(files, request)) return;
+            if (!File.Exists(activePath)) return; // Helper completed while its process identity was being checked.
             RecoverConfirmed(files, request, ExecutablePath);
         }
+        catch (System.ComponentModel.Win32Exception ex) when ((ex.NativeErrorCode == 2 || ex.NativeErrorCode == 3) && !File.Exists(activePath)) { }
+        catch (FileNotFoundException) when (!File.Exists(activePath)) { }
+        catch (DirectoryNotFoundException) when (!File.Exists(activePath)) { }
         catch (Exception ex)
         {
             System.Windows.Forms.MessageBox.Show("A previous app update needs attention. All recovery copies have been kept.\r\n\r\n" + ex.Message,
@@ -421,7 +426,7 @@ internal static class PortableUpdate
         }
         catch (ArgumentException) { return false; }
         catch (InvalidOperationException) { return false; }
-        catch (System.ComponentModel.Win32Exception ex) when (ex.NativeErrorCode == 5) { return true; }
+        catch (System.ComponentModel.Win32Exception) { return true; } // Access failure or concurrent process exit: never take over an unconfirmed live helper.
     }
 
     internal static bool RecoverFromHelper()
