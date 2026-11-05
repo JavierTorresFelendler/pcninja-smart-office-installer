@@ -80,7 +80,7 @@ Verified release EXE files are kept locally under `release-assets\` for upload t
 Verified stable `v3.3.13` SHA256:
 
 ```text
-df2f82594f9a6708991ae5facf1cc1170c4fa5e01cc17c7cac568a49fd651666
+96a90cf1b8a50310b933be119f37d492b90d452fe3c9c46f00023a31d8809840
 ```
 
 ## Notes
