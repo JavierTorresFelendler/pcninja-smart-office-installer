@@ -4,6 +4,7 @@ using System.IO;
 using System.Threading;
 using System.Windows.Forms;
 using OfficeSmart.Updates;
+using PcNinja.Shared;
 
 internal static class Program
 {
@@ -14,8 +15,15 @@ internal static class Program
         if (args.Length == 0 && PortableUpdate.IsRecoveryCopy) return PortableUpdate.IsAdmin && PortableUpdate.RecoverFromHelper() ? 0 : 5;
         string readiness = Environment.GetEnvironmentVariable(UpdateReadiness.EnvironmentName);
         Environment.SetEnvironmentVariable(UpdateReadiness.EnvironmentName, null);
+        // Match the production GUI/helper split: the old GUI owns the event until
+        // exit; helpers bypass it, and the successor must acquire it before ACK.
+        using var singleInstance = PcNinjaSingleInstance.Acquire("SmartOfficeInstallerLifecycleFixture");
+        if (singleInstance == null) return 6;
         if (UpdateReadiness.Valid(readiness) || args.Length == 0)
         {
+            using (var gui = Process.GetCurrentProcess())
+                File.WriteAllText(Path.Combine(Path.GetDirectoryName(PortableUpdate.ExecutablePath), "fixture-gui-process.txt"),
+                    gui.Id + "," + gui.StartTime.ToUniversalTime().Ticks);
             Application.EnableVisualStyles();
             using var form = new Form { Text = "Application updater VM fixture - no Office operations", Width = 500 };
             form.Shown += async (_, _) => { form.Update(); await UpdateReadiness.SignalAsync(readiness); PortableUpdate.RecoverAfterStartup(); await System.Threading.Tasks.Task.Delay(1000); form.Close(); };

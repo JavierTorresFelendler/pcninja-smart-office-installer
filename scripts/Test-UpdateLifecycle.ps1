@@ -1,5 +1,20 @@
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'UpdateFixtureResult.ps1')
+function Wait-FixtureGuiExit([string]$Folder) {
+    # Confirmed update completion can precede the disposable GUI's normal close.
+    # Wait for that exact successor before starting another single-instance case.
+    $record = [IO.File]::ReadAllText((Join-Path $Folder 'fixture-gui-process.txt'))
+    if ($record -notmatch '^(\d+),(\d+)$') { throw 'Invalid fixture GUI process record.' }
+    $fixtureGuiProcessId = [int]$Matches[1]
+    $fixtureGuiStartTicks = [long]$Matches[2]
+    $gui = Get-Process -Id $fixtureGuiProcessId -ErrorAction SilentlyContinue
+    if ($null -eq $gui) { return }
+    try {
+        if ($gui.HasExited) { return }
+        if ($gui.StartTime.ToUniversalTime().Ticks -ne $fixtureGuiStartTicks) { return }
+        if (-not $gui.WaitForExit(10000)) { throw "Disposable GUI did not close: $Folder" }
+    } finally { $gui.Dispose() }
+}
 $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
 if (-not ([Security.Principal.WindowsPrincipal]$identity).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
     Write-Host 'SKIP: Elevated fixture required for production staging ACL and parent/helper handoff.'
@@ -53,7 +68,8 @@ if ((Get-FileHash -LiteralPath $old).Hash -ne $newHash -or
     (Get-FileHash -LiteralPath (Join-Path $fixture 'OLD-Smart Office Installer.exe')).Hash -ne $oldHash) {
     throw 'Same-name replacement or exact predecessor archive mismatch.'
 }
-Write-Host "PASS: Elevated parent/helper same-name replacement, new GUI readiness and exact OLD archive. Disposable fixture retained at $fixture"
+Write-Host "PASS: Elevated single-instance parent/helper same-name replacement, successor guard acquisition, new GUI readiness and exact OLD archive. Disposable fixture retained at $fixture"
+Wait-FixtureGuiExit $fixture
 foreach ($phase in @('before-publication', 'after-publication', 'after-archive', 'missing-canonical')) {
     $phaseFolder = Join-Path $fixture $phase
     New-Item -ItemType Directory -Path $phaseFolder | Out-Null
@@ -85,5 +101,6 @@ foreach ($phase in @('before-publication', 'after-publication', 'after-archive',
     if ($phase -ne 'before-publication' -and $phase -ne 'missing-canonical' -and (Get-FileHash -LiteralPath (Join-Path $phaseFolder 'OLD-Smart Office Installer.exe')).Hash -ne $oldHash) {
         throw 'Recovery archive bytes differ.'
     }
+    Wait-FixtureGuiExit $phaseFolder
     Write-Host "PASS: Normal GUI startup recovered interruption at $phase."
 }

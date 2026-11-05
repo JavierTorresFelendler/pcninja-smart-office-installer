@@ -84,7 +84,10 @@ duplicate update attempts without any HTTP, helper or Office operations.
 
 `scripts/Test-UpdateLifecycle.ps1` additionally builds two harmless executable
 fixtures and, when elevated, tests the actual parent/helper same-name handoff,
-production staging ACLs, new GUI readiness and predecessor hash/archive. It skips
+production staging ACLs, new GUI readiness and predecessor hash/archive. The old
+GUI holds the shared single-instance guard; helpers bypass it and the successor
+must reacquire it before acknowledging readiness. Each case waits for its exact
+disposable GUI process to exit before starting the next case. It skips
 explicitly without an administrator context. Fixtures never deploy Office. CI
 runs these checks; local non-elevated results alone do not prove the full handoff.
 
@@ -92,9 +95,12 @@ runs these checks; local non-elevated results alone do not prove the full handof
 
 The owner accepted the VM fixture from source 440d7d1: full elevated same-name
 replacement, new GUI readiness, exact OLD bytes and all four recovery cases.
-CI run 41849472331 passed the same checks. The released application is the exact
-accepted 3.3.12.0 binary; only documentation and stable metadata changed afterward.
-A future newer stable release is required to exercise public in-app version advancement.
+CI run 41849472331 passed the same checks for the v3.3.12 release.
+For v3.3.13, the owner accepted all six single-instance checks and the real GUI
+from PR #7 source f2108d7 in a VM, then authorized publication. Production changes
+after that acceptance are limited to version metadata. The elevated lifecycle
+fixture now covers ownership transfer through updates and all four recovery cases.
+The v3.3.12 in-app updater can discover v3.3.13 through the stable manifest.
 
 `File.Replace` removes the application-created gap between two separate moves.
 The flushed private journal and independently verified predecessor snapshot also
