@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Reflection;
 using System.Threading;
 
 namespace OfficeSmart.Updates;
@@ -18,6 +19,10 @@ internal static class UpdateCleanup
             !Directory.Exists(Path.Combine(Path.GetDirectoryName(PortableUpdate.ExecutablePath), UpdateFiles.StateFolder))) return;
         try
         {
+            using var state = new UpdateFiles(Path.GetDirectoryName(PortableUpdate.ExecutablePath), Guid.Empty.ToString("N"), false, stateOnly: true);
+            using var executable = new UpdateFiles.LockedFile(PortableUpdate.ExecutablePath, false);
+            string version = typeof(UpdateCleanup).Assembly.GetCustomAttribute<AssemblyFileVersionAttribute>().Version;
+            PortableUpdate.VerifyExecutable(executable, version, executable.Hash());
             using var child = Process.Start(new ProcessStartInfo
             {
                 FileName = PortableUpdate.ExecutablePath, Arguments = Argument,
