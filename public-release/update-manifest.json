@@ -1,13 +1,13 @@
 {
   "channel": "stable",
-  "publicLabel": "v3.3.12",
-  "version": "3.3.12.0",
+  "publicLabel": "v3.3.13",
+  "version": "3.3.13.0",
   "minimumSupportedVersion": "3.3.4.0",
-  "releaseNotesUrl": "https://github.com/JavierTorresFelendler/pcninja-smart-office-installer/releases/tag/v3.3.12",
+  "releaseNotesUrl": "https://github.com/JavierTorresFelendler/pcninja-smart-office-installer/releases/tag/v3.3.13",
   "portable": {
     "fileName": "Smart Office Installer.exe",
     "url": "https://github.com/JavierTorresFelendler/pcninja-smart-office-installer/releases/latest/download/SmartOfficeInstaller.exe",
-    "sha256": "76EF7DA959D9CACB5C8624D54C5FF4A580FD35BBFA01EE991F85A347272A0998"
+    "sha256": "96A90CF1B8A50310B933BE119F37D492B90D452FE3C9C46F00023A31D8809840"
   },
   "signing": {
     "required": false,
