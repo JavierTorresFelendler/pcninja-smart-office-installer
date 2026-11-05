@@ -31,7 +31,7 @@ internal static class Program
             Application.Run(form);
             return 0;
         }
-        bool stageOnly = args.Length == 2 && args[1] == "--stage-recovery";
+        bool stageOnly = args.Length == 2 && (args[1] == "--stage-recovery" || args[1] == "--stage-legacy");
         if (!PortableUpdate.IsAdmin || (args.Length != 1 && !stageOnly)) return 5;
         try
         {
@@ -52,9 +52,10 @@ internal static class Program
             using var parent = Process.GetCurrentProcess();
             var request = new UpdateRequest { OperationId = Path.GetFileName(files.Operation), CreatedTicks = DateTime.UtcNow.Ticks,
                 ParentId = parent.Id, ParentStartTicks = parent.StartTime.ToUniversalTime().Ticks,
-                ParentPath = originalPath, ParentHash = originalHash, Offer = offer };
+                ParentPath = originalPath, ParentHash = originalHash, ParentVersion = FileVersionInfo.GetVersionInfo(originalPath).FileVersion, Offer = offer };
             if (stageOnly)
             {
+                if (args[1] == "--stage-legacy") request.ParentVersion = null;
                 request.HelperId = parent.Id; request.HelperStartTicks = request.ParentStartTicks;
                 using var original = new UpdateFiles.LockedFile(originalPath, false);
                 original.CopyToPrivate(files, files.Backup);

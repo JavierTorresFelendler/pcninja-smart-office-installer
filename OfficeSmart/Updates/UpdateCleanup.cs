@@ -130,17 +130,11 @@ internal static class UpdateCleanup
                     {
                         if (currentVersion < offered || (currentVersion == offered &&
                             !string.Equals(currentHash, request.Offer.Sha256, StringComparison.OrdinalIgnoreCase))) return;
-                        // An exact OLD predecessor must survive outside staging.
-                        for (int slot = 0; slot < 1000; slot++)
-                        {
-                            string path = Path.Combine(folder, (slot == 0 ? "OLD-" : "OLD.V" + slot + "-") + originalName);
-                            if (!File.Exists(path)) continue;
-                            var candidate = new UpdateFiles.LockedFile(path, false);
-                            if (string.Equals(candidate.Hash(), request.ParentHash, StringComparison.OrdinalIgnoreCase))
-                            { archiveGuard = candidate; archive = path; break; }
-                            candidate.Dispose();
-                        }
-                        if (archiveGuard == null) return;
+                        string path = UpdateArchives.Find(files, request);
+                        using (var source = new UpdateFiles.LockedFile(path, true)) archive = UpdateArchives.Archive(files, request, source);
+                        archiveGuard = new UpdateFiles.LockedFile(archive, false);
+                        archiveGuard.RequireHash(request.ParentHash);
+                        files.PublishPermissions(archive);
                     }
                     var payloads = new List<UpdateFiles.LockedFile>();
                     UpdateFiles.LockedFile result = null;
@@ -151,8 +145,13 @@ internal static class UpdateCleanup
                         {
                             result = Pin(handles, Path.Combine(operation, name));
                             string text = result.ReadText(4096);
-                            if (!previousIsCurrent && !string.Equals(text, "Updated to " + request.Offer.Version + "; previous copy: " + archive, StringComparison.OrdinalIgnoreCase) &&
-                                !string.Equals(text, "Recovered new GUI startup; previous copy: " + archive, StringComparison.OrdinalIgnoreCase)) return;
+                            if (!previousIsCurrent && !MatchesResult(text, archive, request.Offer.Version))
+                            {
+                                bool legacy = false;
+                                foreach (string path in UpdateArchives.LegacyPaths(folder, originalName))
+                                    if (MatchesResult(text, path, request.Offer.Version)) { legacy = true; break; }
+                                if (!legacy) return;
+                            }
                             continue;
                         }
                         string expected = name == "helper.exe" || name == "previous.exe" || name == "displaced.exe" ? request.ParentHash :
@@ -183,6 +182,9 @@ internal static class UpdateCleanup
         handles.Add(file);
         return file;
     }
+    private static bool MatchesResult(string text, string archive, string version) =>
+        string.Equals(text, "Updated to " + version + "; previous copy: " + archive, StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(text, "Recovered new GUI startup; previous copy: " + archive, StringComparison.OrdinalIgnoreCase);
     private static void DeleteAll(List<UpdateFiles.LockedFile> handles)
     {
         foreach (var file in handles) { file.Delete(); file.Dispose(); }

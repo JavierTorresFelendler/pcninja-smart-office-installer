@@ -9,7 +9,7 @@ or framework migration is introduced.
 ## Intended behavior
 
 - Keep `Smart Office Installer.exe` as the local name. File version identifies a
-  release; versioned filenames are unnecessary. GitHub retains its compact asset
+  release; the active filename stays unversioned. GitHub retains its compact asset
   name `SmartOfficeInstaller.exe`.
 - Startup checks metadata only. Explicit consent starts an in-app download dialog
   with cancellation. Opening the main update button no longer downloads through
@@ -33,15 +33,18 @@ or framework migration is introduced.
   The helper verifies and pins the canonical file through launch. Launch uses no arguments;
   only an opaque readiness pipe name is passed in the child's environment.
 - Authenticate the pipe client PID against the retained launched process. Confirm
-  shown/painted GUI readiness before archiving the exact predecessor as OLD-.
-  OLD.V1-, OLD.V2-, etc. retain collisions without overwrite (up to 1000 attempts).
+  shown/painted GUI readiness before archiving the exact predecessor with its
+  four-part file version: `Smart Office Installer-v3.3.14.0.exe`. Reuse a backup
+  only if its SHA256 matches; different bytes under the same version use a full
+  SHA256 suffix. Neither existing backup is overwritten. Old helpers' OLD archives
+  from the current transaction are converted by the successor's cleanup process.
 - If launch fails and the successor is certainly gone, restore the predecessor
   with another retained backup. If a successor is still alive, retain it and
   the private backup; do not terminate possible user work. Report incomplete
   startup and retain diagnostic/recovery files.
 - Publish a protected, flushed active-operation pointer only after the helper is
   ready. On normal GUI startup, skip a live matching helper; otherwise inspect that
-  exact journal. A confirmed new GUI finishes OLD archiving, a current predecessor
+  exact journal. A confirmed new GUI finishes predecessor archiving, a current predecessor
   clears an uncommitted/rolled-back handoff, and an already archived predecessor is
   identified by deterministic names and exact hash. No newest-file guessing.
 
@@ -64,7 +67,7 @@ After GUI readiness and recovery, the canonical EXE starts a separate internal
 cleanup process without another window or UAC prompt. It waits for the recorded
 helper to exit and the active recovery pointer to clear, then removes only known,
 verified update artifacts. Successful updates leave the current EXE and OLD
-predecessor; existing OLD archives are never deleted or overwritten. Completed
+predecessor (versioned since v3.3.15); unrelated existing OLD archives are not deleted or overwritten. Completed
 operations from older releases are handled on startup too.
 
 The current EXE is pinned and verified throughout cleanup. A completed update

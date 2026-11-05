@@ -1,5 +1,13 @@
 # Changelog
 
+## v3.3.15
+
+- Name predecessor backups with their actual four-part file version before `.exe`, instead of OLD prefixes.
+- Reuse an existing byte-identical backup; if a version filename contains different bytes, preserve both using a SHA256 suffix for the additional predecessor.
+- Convert the current upgrade's legacy OLD archive when upgrading from earlier helpers, while retaining compatibility with old recovery journals and completed staging cleanup.
+- Keep the active EXE name unchanged and remove completed update work directories.
+- Windows file version: `3.3.15.0`.
+
 ## v3.3.14
 
 - Automatically remove verified update work files after successful upgrade, leaving the current EXE and its OLD predecessor beside each other.

@@ -242,16 +242,6 @@ internal sealed class UpdateFiles : IDisposable
             }
             finally { Marshal.FreeHGlobal(disposition); }
         }
-        internal string Archive(string folder, string originalName)
-        {
-            for (int slot = 0; slot < 1000; slot++)
-            {
-                string name = (slot == 0 ? "OLD-" : "OLD.V" + slot + "-") + originalName;
-                try { Move(Path.Combine(folder, name)); return PathName; }
-                catch (Win32Exception ex) when (ex.NativeErrorCode == 80 || ex.NativeErrorCode == 183) { }
-            }
-            throw new IOException("No free OLD archive name. The previous EXE remains in private staging.");
-        }
         public void Dispose() => stream.Dispose();
     }
 

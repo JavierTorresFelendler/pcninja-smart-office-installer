@@ -34,6 +34,7 @@ internal sealed class UpdateRequest
     [DataMember] public long ParentStartTicks;
     [DataMember] public string ParentPath;
     [DataMember] public string ParentHash;
+    [DataMember] public string ParentVersion;
     [DataMember] public UpdateOffer Offer;
     [DataMember] public int HelperId;
     [DataMember] public long HelperStartTicks;
@@ -181,7 +182,7 @@ internal static class PortableUpdate
         helperGuard.RequireHash(originalHash);
         using var parent = Process.GetCurrentProcess();
         var request = new UpdateRequest { OperationId = id, CreatedTicks = DateTime.UtcNow.Ticks, ParentId = parent.Id,
-            ParentStartTicks = parent.StartTime.ToUniversalTime().Ticks, ParentPath = parentPath, ParentHash = originalHash, Offer = offer };
+            ParentStartTicks = parent.StartTime.ToUniversalTime().Ticks, ParentPath = parentPath, ParentHash = originalHash, ParentVersion = current.ToString(4), Offer = offer };
         cancellation.ThrowIfCancellationRequested();
         original.Dispose(); // Helper reacquires and verifies the exact original before READY.
         await StartHelperAsync(files, request, cancellation);
@@ -355,37 +356,27 @@ internal static class PortableUpdate
         bool separateSource = !string.Equals(request.ParentPath, Path.Combine(files.Folder, CanonicalName), StringComparison.OrdinalIgnoreCase);
         if (!File.Exists(files.Backup) || (separateSource && !File.Exists(request.ParentPath)))
         {
-            // Recover a crash after OLD rename but before completion recording.
-            // These are exact deterministic predecessor names, not a file scan.
-            for (int slot = 0; slot < 1000; slot++)
-            {
-                string prefix = slot == 0 ? "OLD-" : "OLD.V" + slot + "-";
-                string path = Path.Combine(files.Folder, prefix + Path.GetFileName(request.ParentPath));
-                if (!File.Exists(path)) continue;
-                try
-                {
-                    using var existingArchive = new UpdateFiles.LockedFile(path, false);
-                    existingArchive.RequireHash(request.ParentHash);
-                    files.PublishPermissions(path);
-                    return path;
-                }
-                catch (IOException) { }
-                catch (System.ComponentModel.Win32Exception) { }
-            }
-            if (!File.Exists(files.Backup)) throw new IOException("The recorded predecessor backup/archive is unavailable; recovery kept all files.");
+            string path = UpdateArchives.Find(files, request);
+            using var existingArchive = new UpdateFiles.LockedFile(path, true);
+            string recovered = UpdateArchives.Archive(files, request, existingArchive);
+            existingArchive.Dispose();
+            UpdateArchives.Publish(files, request, recovered);
+            return recovered;
         }
         if (!string.Equals(request.ParentPath, Path.Combine(files.Folder, CanonicalName), StringComparison.OrdinalIgnoreCase) && File.Exists(request.ParentPath))
         {
             using var source = new UpdateFiles.LockedFile(request.ParentPath, true);
             source.RequireHash(request.ParentHash);
-            string archivedSource = source.Archive(files.Folder, Path.GetFileName(request.ParentPath));
-            files.PublishPermissions(archivedSource);
+            string archivedSource = UpdateArchives.Archive(files, request, source);
+            source.Dispose();
+            UpdateArchives.Publish(files, request, archivedSource);
             return archivedSource;
         }
         using var previous = new UpdateFiles.LockedFile(files.Backup, true);
         previous.RequireHash(request.ParentHash);
-        string archived = previous.Archive(files.Folder, Path.GetFileName(request.ParentPath));
-        files.PublishPermissions(archived);
+        string archived = UpdateArchives.Archive(files, request, previous);
+        previous.Dispose();
+        UpdateArchives.Publish(files, request, archived);
         return archived;
     }
 
@@ -504,7 +495,9 @@ internal static class PortableUpdate
             !string.Equals(Path.GetDirectoryName(UpdateFiles.LocalPath(request.ParentPath)), files.Folder, StringComparison.OrdinalIgnoreCase) ||
             !request.ParentPath.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) || Path.GetFileName(request.ParentPath).StartsWith("OLD", StringComparison.OrdinalIgnoreCase))
             throw new IOException("Invalid or expired app-update handoff.");
-        ValidateOffer(request.Offer, Version.Parse(FileVersionInfo.GetVersionInfo(ExecutablePath).FileVersion));
+        string currentVersion = FileVersionInfo.GetVersionInfo(ExecutablePath).FileVersion;
+        if (request.ParentVersion != null && request.ParentVersion != currentVersion) throw new IOException("The predecessor version changed.");
+        ValidateOffer(request.Offer, Version.Parse(currentVersion));
     }
 
     internal static string Serialize<T>(T value)
